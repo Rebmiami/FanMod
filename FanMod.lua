@@ -85,7 +85,7 @@ end
 elem.element(srad, elem.element(elem.DEFAULT_PT_PROT))
 elem.property(srad, "Name", "SRAD")
 elem.property(srad, "Description", "Hidden element. Used by SMDB")
-elem.property(srad, "Colour", 0xff0000)
+elem.property(srad, "Colour", 0xff1111)
 elem.property(srad, "MenuSection", -1)
 elem.property(srad, "Collision", 1)
  -- elem.property(srad, "Properties", )
@@ -124,6 +124,17 @@ elem.property(srad, "Update", function(i, x, y, s, n)
 
 end)
 
+elements.property(srad, "Graphics", function(i, r, g, b)
+	
+	local firea = 255;
+
+	local pixel_mode = ren.PMODE_FLAT + ren.PMODE_FLARE + ren.FIRE_ADD
+
+	return 1,pixel_mode,255,r,g,b,firea,r,g,b;
+end)
+
+-- I HATE CONV 🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡
+-- Translation: The only element that SMDB is weak against is CONV, so modify CONV so that it can be overtaken more easily.
 elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 	for cx = -1, 1 do
 		for cy = -1, 1 do
