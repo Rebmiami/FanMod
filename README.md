@@ -12,7 +12,7 @@ Step 3: Open your Powder Toy data folder by clicking on the small checkmark next
 
 ![2022-06-14_00-42](https://user-images.githubusercontent.com/59275598/173496213-de072aad-eaa1-4b1a-8cc4-89c007d07781.png)
 
-Then, open the "scripts" folder in the window that appears:
+Then, open the "scripts" folder in the window that appears (if there is no scripts folder, create one):
 
 ![2022-06-14_00-56](https://user-images.githubusercontent.com/59275598/173497079-ce753ac7-bd55-47f7-99d8-d4dc6000821a.png)
 
