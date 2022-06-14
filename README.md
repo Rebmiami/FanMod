@@ -29,3 +29,5 @@ Step 5: if you do not have the Script Manager (if you do, skip this step), enter
 Step 6: Enter the Lua menu with the button on the right side of the screen. Look for "FanMod.lua", and if the box next to it is empty, click on it, and then press "Done":
 
 ![2022-06-14_01-12](https://user-images.githubusercontent.com/59275598/173498412-dbdfdb0e-b42d-4327-bad7-41bf2e94a459.png)
+
+Now, the mod is installed! Repeat these instructions and overwrite the old "FanMod.lua" when a new update is released.
