@@ -3,6 +3,8 @@
 local smdb = elem.allocate("FanMod", "SMDB") -- Super mega death bomb
 local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of its explosion
 
+local trit = elem.allocate("FanMod", "TRIT") -- Tritium
+
 
 
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
@@ -149,3 +151,9 @@ elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 	end
 end
 , 2)
+
+
+elem.element(trit, elem.element(elem.DEFAULT_PT_HYGN))
+elem.property(trit, "Name", "TRIT")
+elem.property(trit, "Description", "Tritium. Radioactive gas. Can be created by firing neutrons at LITH. Can be fused with DEUT.")
+elem.property(trit, "Colour", 0x055b3f)
