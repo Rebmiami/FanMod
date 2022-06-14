@@ -20,7 +20,7 @@ Step 4: Place "FanMod.lua" inside the scripts folder:
 
 ![2022-06-14_01-00](https://user-images.githubusercontent.com/59275598/173497145-f2d7192a-a97f-4c39-bf8a-1a0589b6cba1.png)
 
-Step 5: if you do not have the Script Manager (if you do, skip this step), enter the Powder Toy console and type in `tpt.getscript(1, "autorun.lua", 1)`, then press Enter, and confirm by pressing "Install" when the pop-up appears:
+Step 5: If you do not have the Script Manager (if you do, skip this step), enter the Powder Toy console and type in `tpt.getscript(1, "autorun.lua", 1)`, then press Enter, and confirm by pressing "Install" when the pop-up appears:
 
 ![2022-06-14_01-09](https://user-images.githubusercontent.com/59275598/173498034-3a84cb06-201e-4c63-a969-cd5825647e39.png)
 
