@@ -134,7 +134,8 @@ elements.property(srad, "Graphics", function(i, r, g, b)
 end)
 
 -- I HATE CONV 🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡
--- Translation: The only element that SMDB is weak against is CONV, so modify CONV so that it can be overtaken more easily.
+-- Translation: The only element that SMDB is weak against is CONV, so modify CONV so that it can be 
+-- overtaken more easily.
 elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 	for cx = -1, 1 do
 		for cy = -1, 1 do
