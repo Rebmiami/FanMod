@@ -11,7 +11,7 @@ Step 2: Download "FanMod.lua":
 
 Step 3: Open your Powder Toy data folder by clicking on the small checkmark next to your username, scrolling down, and selecting "Open Data Folder":
 
-![2022-06-14_03-00](https://user-images.githubusercontent.com/59275598/173514131-73aa90bb-af35-4528-99f8-0a5a1f4a689f.png)
+![2022-06-14_03-10](https://user-images.githubusercontent.com/59275598/173515890-e3d06cd0-ef62-4852-90eb-46a32a8afdae.png)
 
 ![2022-06-14_03-00_1](https://user-images.githubusercontent.com/59275598/173514162-c1f23c40-318c-4ce8-add8-21026ecee388.png)
 
