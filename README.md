@@ -1,3 +1,4 @@
+NOTE: The mod is not yet available on the Lua browser, so this is the only way to run it. It will be submitted to the Lua browser once all 7 elements have been implemented.
 # HOW TO INSTALL
 
 Step 1: Go to the "Releases" section on the right side of this page, and select the release labeled "Latest":
@@ -10,7 +11,9 @@ Step 2: Download "FanMod.lua":
 
 Step 3: Open your Powder Toy data folder by clicking on the small checkmark next to your username, scrolling down, and selecting "Open Data Folder":
 
-![2022-06-14_00-42](https://user-images.githubusercontent.com/59275598/173496213-de072aad-eaa1-4b1a-8cc4-89c007d07781.png)
+![2022-06-14_03-00](https://user-images.githubusercontent.com/59275598/173514131-73aa90bb-af35-4528-99f8-0a5a1f4a689f.png)
+
+![2022-06-14_03-00_1](https://user-images.githubusercontent.com/59275598/173514162-c1f23c40-318c-4ce8-add8-21026ecee388.png)
 
 Then, open the "scripts" folder in the window that appears (if there is no scripts folder, create one):
 
