@@ -5,6 +5,7 @@ local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of 
 
 local trit = elem.allocate("FanMod", "TRIT") -- Tritium
 
+local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
 
 
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
@@ -173,7 +174,7 @@ elem.property(trit, "Update", function(i, x, y, s, n)
 		if (sim.partProperty(bp, "type") == elem.DEFAULT_PT_PHOT) or (sim.partProperty(bp, "type") == elem.DEFAULT_PT_NEUT) then
 			nearbyRadiation = true
 		end
-		if nearbyRadiation then print("So Irradiated Rn") end
+		-- if nearbyRadiation then print("So Irradiated Rn") end
 	end
 
 	-- Not realistic, but making tritium fusion easy to activate makes it more useful.
@@ -244,4 +245,22 @@ elem.property(elem.DEFAULT_PT_NEUT, "Update", function(i, x, y, s, n)
 			end
 		end
 	end
+end)
+
+elem.element(ffld, elem.element(elem.DEFAULT_PT_CLNE))
+elem.property(ffld, "Name", "FFLD")
+elem.property(ffld, "Description", "Forcefield generator. Protects a region from elements matching its CTYPE. Temp sets range and TMP sets mode.")
+elem.property(ffld, "Colour", 0x00de94)
+
+elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_DRAWONCTYPE)
+
+elem.property(ffld, "Update", function(i, x, y, s, n)
+	
+	local nearby = sim.partNeighbours(x, y, 20, elem.DEFAULT_PT_DUST)
+
+	for k,d in pairs(nearby) do
+		sim.partChangeType(d, elem.DEFAULT_PT_EMBR)
+
+	end
+	
 end)
