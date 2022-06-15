@@ -211,14 +211,12 @@ elements.property(trit, "Graphics", function (i, r, g, b)
 	local x, y = sim.partPosition(i)
 	x = math.floor(x)
 	y = math.floor(y)
-	for cx = -1, 1 do
-		for cy = -1, 1 do
-			local type = tpt.get_property("type", x + cx, y + cy)
-			if type == elem.DEFAULT_PT_GLAS or type == elem.DEFAULT_PT_FILT then
-				pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
-				goto done
-			end
-		end
+	
+	local nearGlass = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_GLAS)
+	local nearFilt = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_FILT)
+
+	if #nearGlass + #nearFilt > 0 then
+		pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
 	end
 
 	::done::
