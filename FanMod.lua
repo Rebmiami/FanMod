@@ -3,6 +3,9 @@
 local smdb = elem.allocate("FanMod", "SMDB") -- Super mega death bomb
 local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of its explosion
 
+local trit = elem.allocate("FanMod", "TRIT") -- Tritium
+
+local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
 
 
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
@@ -134,8 +137,8 @@ elements.property(srad, "Graphics", function(i, r, g, b)
 end)
 
 -- I HATE CONV 🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡🤡
--- Translation: The only element that SMDB is weak against is CONV, so modify CONV so that it can be 
--- overtaken more easily.
+-- Translation: The only element that SMDB is weak against is CONV, so grant SMDB some special ability
+-- against it
 elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 	for cx = -1, 1 do
 		for cy = -1, 1 do
@@ -149,3 +152,115 @@ elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 	end
 end
 , 2)
+
+
+elem.element(trit, elem.element(elem.DEFAULT_PT_HYGN))
+elem.property(trit, "Name", "TRIT")
+elem.property(trit, "Description", "Tritium. Radioactive gas. Can be created by firing neutrons at LITH. Can be fused with DEUT.")
+elem.property(trit, "Colour", 0x055b3f)
+elem.property(trit, "MenuSection", elem.SC_NUCLEAR)
+elem.property(trit, "Properties", elem.TYPE_GAS + elem.PROP_NEUTPASS)
+elem.property(trit, "Update", function(i, x, y, s, n)
+	if math.random(3000) == 1 then
+		sim.partChangeType(i, elem.DEFAULT_PT_HYGN)
+		local elec = sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC)
+		sim.partProperty(elec, "temp", sim.partProperty(i, "temp"))
+	end
+
+	local nearbyRadiation = false
+	local bx, by = x + math.random(3) - 2, y + math.random(3) - 2
+	local bp = sim.partID(bx, by)
+	if bp ~= nil then
+		if (sim.partProperty(bp, "type") == elem.DEFAULT_PT_PHOT) or (sim.partProperty(bp, "type") == elem.DEFAULT_PT_NEUT) then
+			nearbyRadiation = true
+		end
+		-- if nearbyRadiation then print("So Irradiated Rn") end
+	end
+
+	-- Not realistic, but making tritium fusion easy to activate makes it more useful.
+	if nearbyRadiation or (sim.partProperty(i, "temp") > 1273.15 and sim.pressure(x/4, y/4) > 10.0) then
+		local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
+		if tpt.get_property('type', cx, cy) == elem.DEFAULT_PT_DEUT then
+			sim.partProperty(i, "temp", sim.partProperty(i, "temp") + math.random(750, 1249))
+
+			sim.partChangeType(i, elem.DEFAULT_PT_NOBL)
+			local elec = sim.partCreate(-3, x, y, elem.DEFAULT_PT_NEUT)
+			sim.partProperty(elec, "temp", sim.partProperty(i, "temp"))
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 10)
+		end
+	end
+end)
+
+elements.property(trit, "Graphics", function(i, r, g, b)
+	
+	local colr = r
+	local colg = g
+	local colb = b
+	
+	local firea = 255
+
+	local pixel_mode = ren.FIRE_BLEND
+
+	local x, y = sim.partPosition(i)
+	x = math.floor(x)
+	y = math.floor(y)
+	for cx = -1, 1 do
+		for cy = -1, 1 do
+			local type = tpt.get_property("type", x + cx, y + cy)
+			if type == elem.DEFAULT_PT_GLAS or type == elem.DEFAULT_PT_FILT then
+				pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
+				goto done
+			end
+		end
+	end
+
+	::done::
+	
+	local firer = colr;
+	local fireg = colg;
+	local fireb = colb;
+	
+	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
+end)
+
+sim.can_move(elem.DEFAULT_PT_ELEC, trit, 2)
+sim.can_move(elem.DEFAULT_PT_PHOT, trit, 2)
+
+
+elem.property(elem.DEFAULT_PT_LITH, "Properties", elem.property(elem.DEFAULT_PT_LITH, "Properties") + elem.PROP_NEUTPASS)
+-- sim.can_move(elem.DEFAULT_PT_NEUT, elem.DEFAULT_PT_LITH, 2)
+
+-- High-speed neutrons convert Lithium into Tritium
+elem.property(elem.DEFAULT_PT_NEUT, "Update", function(i, x, y, s, n)
+	if math.random(15) == 1 then
+		local index = sim.partID(x, y)
+		if index ~= i and index ~= nil and sim.partProperty(index, "type") == elem.DEFAULT_PT_LITH then
+			-- print("Neut On Me")
+			local velocity = math.sqrt(sim.partProperty(i, "vx") ^ 2 + sim.partProperty(i, "vy") ^ 2)
+			if velocity > 5 then
+				sim.partChangeType(index, trit)
+
+				sim.partProperty(i, "vx", sim.partProperty(i, "vx") * 0.7)
+				sim.partProperty(i, "vy", sim.partProperty(i, "vy") * 0.7)
+			end
+		end
+	end
+end)
+
+elem.element(ffld, elem.element(elem.DEFAULT_PT_CLNE))
+elem.property(ffld, "Name", "FFLD")
+elem.property(ffld, "Description", "Forcefield generator. Protects a region from elements matching its CTYPE. Temp sets range and TMP sets mode.")
+elem.property(ffld, "Colour", 0x00de94)
+
+elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_DRAWONCTYPE)
+
+elem.property(ffld, "Update", function(i, x, y, s, n)
+	
+	local nearby = sim.partNeighbours(x, y, 20, elem.DEFAULT_PT_DUST)
+
+	for k,d in pairs(nearby) do
+		sim.partChangeType(d, elem.DEFAULT_PT_EMBR)
+
+	end
+	
+end)
