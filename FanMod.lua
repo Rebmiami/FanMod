@@ -4,6 +4,7 @@ local smdb = elem.allocate("FanMod", "SMDB") -- Super mega death bomb
 local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of its explosion
 
 local trit = elem.allocate("FanMod", "TRIT") -- Tritium
+local ltrt = elem.allocate("FanMod", "LTRT") -- Liquid Tritium
 
 local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
 
@@ -160,7 +161,10 @@ elem.property(trit, "Description", "Tritium. Radioactive gas. Can be created by 
 elem.property(trit, "Colour", 0x055b3f)
 elem.property(trit, "MenuSection", elem.SC_NUCLEAR)
 elem.property(trit, "Properties", elem.TYPE_GAS + elem.PROP_NEUTPASS)
-elem.property(trit, "Update", function(i, x, y, s, n)
+elem.property(trit, "HighPressure", 10)
+elem.property(trit, "HighPressureTransition", ltrt)
+
+function tritupdate(i, x, y, s, n)
 	if math.random(3000) == 1 then
 		sim.partChangeType(i, elem.DEFAULT_PT_HYGN)
 		local elec = sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC)
@@ -189,9 +193,12 @@ elem.property(trit, "Update", function(i, x, y, s, n)
 			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 10)
 		end
 	end
-end)
+end
+	
+elem.property(trit, "Update", tritupdate)
 
-elements.property(trit, "Graphics", function(i, r, g, b)
+
+elements.property(trit, "Graphics", function (i, r, g, b)
 	
 	local colr = r
 	local colg = g
@@ -223,8 +230,20 @@ elements.property(trit, "Graphics", function(i, r, g, b)
 	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
 end)
 
+elem.element(ltrt, elem.element(elem.DEFAULT_PT_DEUT))
+elem.property(ltrt, "Name", "LTRT")
+elem.property(ltrt, "Description", "Liquid tritium.")
+elem.property(ltrt, "Colour", 0x055b3f)
+elem.property(ltrt, "MenuSection", -1)
+elem.property(ltrt, "Properties", elem.TYPE_LIQUID + elem.PROP_NEUTPASS)
+elem.property(ltrt, "LowPressure", 10)
+elem.property(ltrt, "LowPressureTransition", trit)
+elem.property(ltrt, "Update", tritupdate)
+
 sim.can_move(elem.DEFAULT_PT_ELEC, trit, 2)
 sim.can_move(elem.DEFAULT_PT_PHOT, trit, 2)
+sim.can_move(elem.DEFAULT_PT_ELEC, ltrt, 2)
+sim.can_move(elem.DEFAULT_PT_PHOT, ltrt, 2)
 
 
 elem.property(elem.DEFAULT_PT_LITH, "Properties", elem.property(elem.DEFAULT_PT_LITH, "Properties") + elem.PROP_NEUTPASS)
