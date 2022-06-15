@@ -249,7 +249,7 @@ end)
 
 elem.element(ffld, elem.element(elem.DEFAULT_PT_CLNE))
 elem.property(ffld, "Name", "FFLD")
-elem.property(ffld, "Description", "Forcefield generator. Protects a region from elements matching its CTYPE. Temp sets range and TMP sets mode.")
+elem.property(ffld, "Description", "Forcefield generator. Repels the element drawn over it. Temp sets range and TMP sets mode. Toggle with PSCN/NSCN or ARAY.")
 elem.property(ffld, "Colour", 0x00de94)
 
 elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_DRAWONCTYPE)
