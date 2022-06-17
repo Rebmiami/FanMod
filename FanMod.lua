@@ -154,7 +154,7 @@ function round(num)
 end
 
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
-elem.property(smdb, "Name", "SDMB")
+elem.property(smdb, "Name", "SMDB")
 elem.property(smdb, "Description", "Super mega death bomb. Can destroy literally anything, including walls.")
 elem.property(smdb, "Colour", 0xff0000)
 
