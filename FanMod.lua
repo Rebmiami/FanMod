@@ -614,6 +614,13 @@ end)
 
 elem.property(ffld, "Update", function(i, x, y, s, n)
 
+	if sim.partProperty(i, "temp") < 273.15 then
+		sim.partProperty(i, "temp", 273.15)
+	end
+	if sim.partProperty(i, "temp") > 273.15 + 200 then
+		sim.partProperty(i, "temp", 273.15 + 200)
+	end
+
 	local enabled = sim.partProperty(i, "tmp2") -- Used for toggling with silicon/aray
 
 	for cx = -2, 2 do
