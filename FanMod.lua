@@ -11,6 +11,10 @@ local ltrt = elem.allocate("FanMod", "LTRT") -- Liquid Tritium
 
 local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
 
+
+local grph = elem.allocate("FanMod", "GRPH") -- Graphite
+local bgph = elem.allocate("FanMod", "BGPH") -- Broken Graphite
+
 -- Utilities
 
 local mouseButtonType = {
@@ -133,9 +137,9 @@ event.register(event.mouseup, function(x, y, button, reason)
 	shiftTriangleID = -1
 end) 
 
-event.register(event.blur, function()
+-- event.register(event.blur, function()
 	-- print("Where We Are")
-end) 
+-- end) 
 
 local solidWalls = { -- SMDB is only allowed to destroy solid walls.
 	[1] = true, -- conductive wall
@@ -754,3 +758,387 @@ elem.property(ffld, "CtypeDraw", function(i, t)
 		sim.partProperty(i, "ctype", t)
 	end
 end)
+
+local graphiteIgniters = {
+	[elem.DEFAULT_PT_FIRE] = true,
+	[elem.DEFAULT_PT_PLSM] = true,
+	[elem.DEFAULT_PT_OXYG] = true,
+}
+
+local graphiteBurnHealth = 40
+local graphitePressureHealth = 10
+local graphiteExtinguishTime = 30
+local brokenGraphBurnHealth = 60
+
+elem.element(grph, elem.element(elem.DEFAULT_PT_DMND))
+elem.property(grph, "Name", "GRPH")
+elem.property(grph, "Description", "Graphite. Strong solid. Can withstand extreme conditions and slows radiation.")
+elem.property(grph, "Colour", 0x15111D)
+elem.property(grph, "MenuSection", elem.SC_SOLIDS)
+elem.property(grph, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS + elem.PROP_BLACK)
+elem.property(grph, "Hardness", 2)
+elem.property(grph, "HeatConduct", 12)
+elem.property(grph, "HighTemperature", 273.15 + 3400)
+elem.property(grph, "HighTemperatureTransition", elem.DEFAULT_PT_LAVA)
+
+elements.property(grph, "Create", function(i, x, y, t, v)
+
+	sim.partProperty(i, "tmp", graphiteBurnHealth)
+	sim.partProperty(i, "tmp2", graphitePressureHealth)
+end)
+
+local nearbyPartsTable = {
+	[0x1] = function(x, y) return {sim.pmap(x, y - 1), sim.pmap(x, y - 2), sim.pmap(x, y - 3), sim.pmap(x, y - 4), } end, -- Up
+	[0x2] = function(x, y) return {sim.pmap(x, y + 1), sim.pmap(x, y + 2), sim.pmap(x, y + 3), sim.pmap(x, y + 4), } end, -- Down
+	[0x4] = function(x, y) return {sim.pmap(x + 1, y), sim.pmap(x + 2, y), sim.pmap(x + 3, y), sim.pmap(x + 4, y), } end, -- Right
+	[0x8] = function(x, y) return {sim.pmap(x - 1, y), sim.pmap(x - 2, y), sim.pmap(x - 3, y), sim.pmap(x - 4, y), } end -- Left
+}
+
+local initialDetectionOffsets = {
+	{0, -1}, -- Up
+	{0, 1}, -- Down
+	{1, 0}, -- Right
+	{-1, 0}, -- Left
+}
+
+local oppositeDirections = {
+	[0x1] = 0x2,
+	[0x2] = 0x1,
+	[0x4] = 0x8,
+	[0x8] = 0x4
+}
+
+local updateGraphiteCycle = false
+local graphiteCycle = 0
+local nextGraphiteCycle = 0
+
+event.register(event.tick, function()
+	if updateGraphiteCycle then
+		graphiteCycle = nextGraphiteCycle
+		nextGraphiteCycle = (graphiteCycle + 1) % 4
+		updateGraphiteCycle = false
+	end
+	-- print (graphiteCycle)
+end)  
+
+-- event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
+-- 	if not rep then
+-- 		print (key)
+-- 		if key == 102 then -- F
+-- 			graphiteCycle = nextGraphiteCycle
+-- 			nextGraphiteCycle = (graphiteCycle + 1) % 4
+-- 		end
+-- 	end
+-- end)  
+
+function sparkGraphite(i, pavg)
+	if i ~= nil and (sim.partProperty(i, "type") == grph or (sim.partProperty(i, "type") == elem.DEFAULT_PT_SPRK and sim.partProperty(i, "ctype") == grph)) then
+		local dir = sim.partProperty(i, "pavg1")
+		if bit.band(dir, oppositeDirections[pavg] + pavg) == 0 and bit.band(dir, 0x30) == 0x0 then 
+		
+			sim.partChangeType(i, elem.DEFAULT_PT_SPRK)
+			sim.partProperty(i, "ctype", grph)
+			if sim.partProperty(i, "life") <= 3 then
+				sim.partProperty(i, "pavg1", pavg)
+			else
+				sim.partProperty(i, "pavg1", bit.bor(sim.partProperty(i, "pavg1"), pavg))
+			end
+			sim.partProperty(i, "life", 4)
+			sim.partProperty(i, "pavg0", nextGraphiteCycle)
+			return true
+		end
+	end
+	return false
+end
+
+function graphiteSparkNormal(i)
+	if i ~= nil then
+		local type = sim.partProperty(i, "type")
+		if bit.band(elements.property(type, "Properties"), elements.PROP_CONDUCTS) ~= 0 then
+			local px, py = sim.partPosition(i)
+			sim.partCreate(-1, px, py, elem.DEFAULT_PT_SPRK)
+			-- sim.partChangeType(i, elem.DEFAULT_PT_SPRK)
+			-- sim.partProperty(i, "life", 4)
+			-- sim.partProperty(i, "ctype", type)
+		end
+	end
+end
+
+elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
+	
+	updateGraphiteCycle = true
+	local ctype = sim.partProperty(i, "ctype")
+	local life = sim.partProperty(i, "life")
+	local timer = sim.partProperty(i, "pavg0")
+	if ctype == grph then
+		if timer == graphiteCycle then
+			for d = 1, 4 do
+				local pavg = 2 ^ (d  - 1)
+				local dir = bit.band(sim.partProperty(i, "pavg1"), pavg)
+				if dir == pavg then
+					for p = 1, 4 do
+						local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
+						if not sparkGraphite(part, dir) then
+							graphiteSparkNormal(part)
+							break
+						end
+					end
+				end
+			end
+		end
+
+		if life == 1 then
+			sim.partProperty(i, "pavg1", 0x10)
+		end
+	else
+		for d = 1, 4 do
+			-- print(initialDetectionOffsets[d])
+			local pavg = 2 ^ (d  - 1)
+			local nearbyParts = nearbyPartsTable[pavg](x, y)
+			for p = 1, 4 do
+				local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
+				if not sparkGraphite(part, pavg) then
+					break
+				end
+			end
+		end
+	end
+end, 3)
+
+elem.property(grph, "Update", function(i, x, y, s, n)
+
+	if sim.partProperty(i, "pavg1") == 0x10 then
+		sim.partProperty(i, "pavg1", 0x20)
+	elseif sim.partProperty(i, "pavg1") == 0x20 then
+		sim.partProperty(i, "pavg1", 0)
+	end
+
+	local a = sim.photons(x, y)
+	-- print(a)
+	if a ~= nil then
+		-- print(a)
+		local vel = math.sqrt(sim.partProperty(a, "vx") ^ 2 + sim.partProperty(a, "vy") ^ 2)
+		if vel > 0.1 then
+			sim.partProperty(a, "vx", sim.partProperty(a, "vx") * 0.85)
+			sim.partProperty(a, "vy", sim.partProperty(a, "vy") * 0.85)
+		end
+		sim.partProperty(a, "life", sim.partProperty(a, "life") - 3)
+		if math.random(100) == 1 then
+			sim.partKill(a)
+		end
+	end
+
+	local tempC = sim.partProperty(i, "temp") - 273.15
+
+	if tempC < 400 then
+		sim.partProperty(i, "pavg0", 0)
+	end
+
+	local burnHealth = sim.partProperty(i, "pavg0")
+
+	local pressure = simulation.pressure(x / 4, y / 4)
+
+	if pressure > 80 and math.random(2) == 1 then
+		sim.partProperty(i, "tmp2", sim.partProperty(i, "tmp2") - 1)
+		if sim.partProperty(i, "tmp2") <= 0 then
+			sim.partChangeType(i, bgph)
+			if tempC > 1000 then
+				sim.partProperty(i, "life", brokenGraphBurnHealth - 1)
+			else
+				sim.partProperty(i, "life", brokenGraphBurnHealth)
+			end
+			return
+		end
+	end
+
+	if burnHealth > 0 then
+
+		local fireNeighbors = sim.partNeighbours(x, y, 1, elem.DEFAULT_PT_FIRE)
+		local plsmNeighbors = sim.partNeighbours(x, y, 1, elem.DEFAULT_PT_PLSM)
+		if #fireNeighbors > 0 or #plsmNeighbors > 0 then
+			sim.partProperty(i, "pavg0", graphiteExtinguishTime)
+		else
+			sim.partProperty(i, "pavg0", sim.partProperty(i, "pavg0") - 1)
+		end
+		local fire = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+		if fire ~= -1 then
+			sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 10)
+			sim.partProperty(fire, "temp", sim.partProperty(i, "temp")) -- Graphite burns hotter than most materials
+
+			sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") - 1)
+		end
+
+		if sim.partProperty(i, "tmp") <= 0 then
+			sim.partKill(i)
+			return
+		end
+	else
+		local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
+		if tempC > 400 and randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+			sim.partProperty(i, "pavg0", graphiteExtinguishTime)
+		end
+	end
+
+end)
+
+
+
+function graphiteGraphics(i, r, g, b)
+
+	local tempC = sim.partProperty(i, "temp") - 273.15
+	-- local vel = sim.velocityX(number x, number y)
+
+	local pixel_mode = ren.PMODE_FLAT
+
+	local colr = r
+	local colg = g
+	local colb = b
+
+	local firea = 0
+
+	if tempC > 300 then
+		colr = colr + (tempC - 300) * 0.2
+	end
+
+	if tempC > 1200 then
+		colg = colg + (tempC - 1200) * 0.2
+	end
+
+	if tempC > 2000 then
+		colb = colb + (tempC - 2000) * 0.2
+	end
+
+	if tempC > 1600 then
+		firea = firea + (tempC - 1600) * 0.02
+		pixel_mode = ren.PMODE_FLAT + ren.FIRE_ADD
+	end
+
+	local firer = colr;
+	local fireg = colg;
+	local fireb = colb;
+
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+
+end
+
+elem.property(grph, "Graphics", graphiteGraphics)
+
+elem.property(elem.DEFAULT_PT_COAL, "Update", function(i, x, y, s, n)
+	if math.random(15) == 1 then
+		local pressure = simulation.pressure(x / 4, y / 4)
+		local tempC = sim.partProperty(i, "temp") - 273.15
+		if pressure < -20 and tempC > 1000 then
+			sim.partChangeType(i, grph)
+			sim.partProperty(i, "tmp", graphiteBurnHealth)
+			sim.partProperty(i, "tmp2", graphitePressureHealth)
+		end
+	end
+end)
+
+elem.property(elem.DEFAULT_PT_BCOL, "Update", function(i, x, y, s, n)
+	if math.random(15) == 1 then
+		local pressure = simulation.pressure(x / 4, y / 4)
+		local tempC = sim.partProperty(i, "temp") - 273.15
+		if pressure < -20 and tempC > 1000 then
+			sim.partChangeType(i, bgph)
+			sim.partProperty(i, "life", brokenGraphBurnHealth)
+		end
+	end
+end)
+
+
+elem.element(bgph, elem.element(elem.DEFAULT_PT_DUST))
+elem.property(bgph, "Name", "BGPH")
+elem.property(bgph, "Description", "Broken graphite. Can color surfaces dark. Very flammable.")
+elem.property(bgph, "Colour", 0x39304e)
+elem.property(bgph, "MenuSection", elem.SC_POWDERS)
+elem.property(bgph, "Properties", elem.TYPE_PART + elem.PROP_BLACK)
+elem.property(bgph, "Hardness", 4)
+elem.property(bgph, "HeatConduct", 20)
+elem.property(bgph, "Flammable", 0)
+elem.property(bgph, "Advection", 0.4)
+elem.property(bgph, "Gravity", 0.2)
+-- elem.property(bgph, "HighTemperature", 273.15 + 3400)
+-- elem.property(bgph, "HighTemperatureTransition", elem.DEFAULT_PT_LAVA)
+elem.property(bgph, "Create", function(i, x, y, t, v)
+
+	sim.partProperty(i, "life", 60)
+end)
+
+elem.property(bgph, "Update", function(i, x, y, s, n)
+	local tempC = sim.partProperty(i, "temp") - 273.15
+
+
+
+	if sim.partProperty(i, "life") >= brokenGraphBurnHealth then
+		local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
+		if tempC > 1000 or randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+			sim.partProperty(i, "life", brokenGraphBurnHealth - 1)
+			sim.partProperty(i, "tmp", 10 + math.random(20))
+		end
+	else
+		sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+
+		sim.partProperty(i, "life", sim.partProperty(i, "life") - 1)
+		if sim.partProperty(i, "life") <= 0 then
+			sim.partKill(i)
+			return
+		end
+
+		local nearby = sim.partNeighbours(x, y, 1, bgph)
+		if #nearby == 0 then
+			sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") - 1)
+			if sim.partProperty(i, "tmp") <= 0 then
+				for cx = -1, 1 do
+					for cy = -1, 1 do
+						local fire = sim.partCreate(-1, x + cx, y + cy, elem.DEFAULT_PT_FIRE)
+						sim.partProperty(fire, "temp", sim.partProperty(i, "temp") + 200)
+					end
+				end
+				-- sim.createBox(x - 1, y - 1, x + 1, y + 1, elem.DEFAULT_PT_FIRE)
+				sim.pressure(x / 4, y / 4, sim.pressure(x / 4, y / 4) + 10)
+				sim.partKill(i)
+				return
+			end
+		else
+			sim.partProperty(i, "tmp", 10 + math.random(20))
+		end
+	end
+
+
+	if tempC < 400 then
+		sim.partProperty(i, "pavg0", 0)
+	end
+
+	local burnHealth = sim.partProperty(i, "pavg0")
+
+end)
+
+elem.property(bgph, "Graphics", graphiteGraphics)
+
+
+elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
+
+	local ctype = sim.partProperty(i, "ctype")
+
+	if math.random(20000) == 1 then
+		if ctype == grph then
+			local pressure = simulation.pressure(x / 4, y / 4)
+			local temp = sim.partProperty(i, "temp")
+			if pressure >= 255 and temp >= 9999 then
+				sim.partProperty(i, "ctype", elem.DEFAULT_PT_DMND)
+			end
+		end
+	end
+
+	if ctype == elem.DEFAULT_PT_IRON then
+		if math.random(20) == 1 then
+			local randomNeighbor = sim.pmap(x + math.random(5) - 3, y + math.random(5) - 4)
+			if randomNeighbor ~= nil and sim.partProperty(randomNeighbor, "type") == grph then
+				sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
+				sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_BCOL)
+			end
+		end
+	end
+end)
+
