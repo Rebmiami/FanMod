@@ -772,7 +772,7 @@ local brokenGraphBurnHealth = 60
 
 elem.element(grph, elem.element(elem.DEFAULT_PT_DMND))
 elem.property(grph, "Name", "GRPH")
-elem.property(grph, "Description", "Graphite. Strong solid. Can withstand extreme conditions and slows radiation.")
+elem.property(grph, "Description", "Graphite. Strong solid. Can withstand extreme conditions and slows radiation. Conducts electricity in straight lines.")
 elem.property(grph, "Colour", 0x15111D)
 elem.property(grph, "MenuSection", elem.SC_SOLIDS)
 elem.property(grph, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS + elem.PROP_BLACK)
