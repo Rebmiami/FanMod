@@ -821,30 +821,64 @@ event.register(event.tick, function()
 	-- print (graphiteCycle)
 end)  
 
--- event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
--- 	if not rep then
--- 		print (key)
--- 		if key == 102 then -- F
--- 			graphiteCycle = nextGraphiteCycle
--- 			nextGraphiteCycle = (graphiteCycle + 1) % 4
--- 		end
--- 	end
--- end)  
+-- 0x10 - Horizontal
+-- 0x20 - Vertical
+local bitNegaterMap = 
+{
+	[0x0] = 0x0,
+	[0x1] = 0x10,
+	[0x2] = 0x10,
+	[0x3] = 0x10, -- Illegal state
+	[0x4] = 0x20,
+	[0x5] = 0x30,
+	[0x6] = 0x30,
+	[0x7] = 0x30, -- Illegal state
+	[0x8] = 0x20,
+	[0x9] = 0x30,
+	[0xA] = 0x30,
+	[0xB] = 0x20, -- Illegal state
+	[0xC] = 0x30, -- Illegal state
+	[0xD] = 0x30, -- Illegal state
+	[0xE] = 0x30, -- Illegal state
+	[0xF] = 0x30, -- Illegal state
+}
 
-function sparkGraphite(i, pavg)
+local hoveredPart = -1
+
+event.register(event.tick, function()
+	local gx, gy = sim.adjustCoords(tpt.mousex, tpt.mousey)
+	local part = sim.pmap(gx, gy)
+
+	if part ~= nil then
+		local text = bit.tohex(sim.partProperty(part, "pavg1"))
+		graphics.drawText(10, 10, text)
+		hoveredPart = part
+	else
+		hoveredPart = -1
+	end
+end)  
+
+function sparkGraphite(i, sparkDir)
+	-- if i == hoveredPart then
+	-- 	print("They tried to spark me!")
+	-- end
 	if i ~= nil and (sim.partProperty(i, "type") == grph or (sim.partProperty(i, "type") == elem.DEFAULT_PT_SPRK and sim.partProperty(i, "ctype") == grph)) then
 		local dir = sim.partProperty(i, "pavg1")
-		if bit.band(dir, oppositeDirections[pavg] + pavg) == 0 and bit.band(dir, 0x30) == 0x0 then 
+		local negate = bit.band(dir, bitNegaterMap[sparkDir] * 5)
+		if bit.band(dir, oppositeDirections[sparkDir] + sparkDir) == 0 and negate == 0x0 then 
 		
 			sim.partChangeType(i, elem.DEFAULT_PT_SPRK)
 			sim.partProperty(i, "ctype", grph)
-			if sim.partProperty(i, "life") <= 3 then
-				sim.partProperty(i, "pavg1", pavg)
-			else
-				sim.partProperty(i, "pavg1", bit.bor(sim.partProperty(i, "pavg1"), pavg))
-			end
+			-- if sim.partProperty(i, "life") <= 3 then
+			-- 	sim.partProperty(i, "pavg1", sparkDir)
+			-- else
+				sim.partProperty(i, "pavg1", bit.bor(sim.partProperty(i, "pavg1"), sparkDir))
+			-- end
 			sim.partProperty(i, "life", 4)
 			sim.partProperty(i, "pavg0", nextGraphiteCycle)
+			-- if i == hoveredPart then
+			-- 	print("I got sparked! dir: " .. dir .. ", negate: " .. negate .. ", sparkDir: " .. sparkDir)
+			-- end
 			return true
 		end
 	end
@@ -854,15 +888,22 @@ end
 function graphiteSparkNormal(i)
 	if i ~= nil then
 		local type = sim.partProperty(i, "type")
-		if bit.band(elements.property(type, "Properties"), elements.PROP_CONDUCTS) ~= 0 then
+		if bit.band(elements.property(type, "Properties"), elements.PROP_CONDUCTS) ~= 0 and type ~= elem.DEFAULT_PT_PSCN then
 			local px, py = sim.partPosition(i)
 			sim.partCreate(-1, px, py, elem.DEFAULT_PT_SPRK)
 			-- sim.partChangeType(i, elem.DEFAULT_PT_SPRK)
 			-- sim.partProperty(i, "life", 4)
 			-- sim.partProperty(i, "ctype", type)
+			return true
 		end
 	end
+	return false
 end
+
+local graphiteProgrammable = {
+	[elem.DEFAULT_PT_PTCT] = true,
+	[elem.DEFAULT_PT_NTCT] = true
+}
 
 elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
 	
@@ -873,13 +914,12 @@ elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
 	if ctype == grph then
 		if timer == graphiteCycle then
 			for d = 1, 4 do
-				local pavg = 2 ^ (d  - 1)
-				local dir = bit.band(sim.partProperty(i, "pavg1"), pavg)
-				if dir == pavg then
+				local dirBit = 2 ^ (d - 1)
+				local dir = bit.band(sim.partProperty(i, "pavg1"), dirBit)
+				if dir == dirBit then
 					for p = 1, 4 do
 						local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
-						if not sparkGraphite(part, dir) then
-							graphiteSparkNormal(part)
+						if not sparkGraphite(part, dir) and not graphiteSparkNormal(part) then
 							break
 						end
 					end
@@ -888,29 +928,41 @@ elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
 		end
 
 		if life == 1 then
-			sim.partProperty(i, "pavg1", 0x10)
+			sim.partProperty(i, "pavg1", bitNegaterMap[bit.band(sim.partProperty(i, "pavg1"), 0xF)])
 		end
-	else
+	elseif ctype ~= elem.DEFAULT_PT_NSCN then
 		for d = 1, 4 do
-			-- print(initialDetectionOffsets[d])
-			local pavg = 2 ^ (d  - 1)
-			local nearbyParts = nearbyPartsTable[pavg](x, y)
+			local dirBit = 2 ^ (d - 1)
+			if graphiteProgrammable[ctype] then
+				local tmp = sim.partProperty(i, "tmp")
+				if bit.band(tmp, dirBit) ~= 0 then
+					goto continue
+				end
+			end
+			local nearbyParts = nearbyPartsTable[dirBit](x, y)
 			for p = 1, 4 do
 				local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
-				if not sparkGraphite(part, pavg) then
+				if not sparkGraphite(part, dirBit) then
 					break
 				end
 			end
+			::continue::
 		end
 	end
 end, 3)
 
 elem.property(grph, "Update", function(i, x, y, s, n)
 
-	if sim.partProperty(i, "pavg1") == 0x10 then
-		sim.partProperty(i, "pavg1", 0x20)
-	elseif sim.partProperty(i, "pavg1") == 0x20 then
-		sim.partProperty(i, "pavg1", 0)
+	if bit.band(sim.partProperty(i, "pavg1"), 0x10) == 0x10 then
+		sim.partProperty(i, "pavg1", bit.bxor(sim.partProperty(i, "pavg1"), 0x50))
+	elseif bit.band(sim.partProperty(i, "pavg1"), 0x40) == 0x40 then
+		sim.partProperty(i, "pavg1", bit.bxor(sim.partProperty(i, "pavg1"), 0x40))
+	end
+
+	if bit.band(sim.partProperty(i, "pavg1"), 0x20) == 0x20 then
+		sim.partProperty(i, "pavg1", bit.bxor(sim.partProperty(i, "pavg1"), 0xA0))
+	elseif bit.band(sim.partProperty(i, "pavg1"), 0x80) == 0x80 then
+		sim.partProperty(i, "pavg1", bit.bxor(sim.partProperty(i, "pavg1"), 0x80))
 	end
 
 	local a = sim.photons(x, y)
@@ -986,6 +1038,7 @@ end)
 function graphiteGraphics(i, r, g, b)
 
 	local tempC = sim.partProperty(i, "temp") - 273.15
+	local burn = graphiteBurnHealth - sim.partProperty(i, "tmp")
 	-- local vel = sim.velocityX(number x, number y)
 
 	local pixel_mode = ren.PMODE_FLAT
@@ -993,6 +1046,12 @@ function graphiteGraphics(i, r, g, b)
 	local colr = r
 	local colg = g
 	local colb = b
+
+	if sim.partProperty(i, "type") == grph then
+		colr = r + burn * 5
+		colg = g + burn * 5
+		colb = b + burn * 4
+	end
 
 	local firea = 0
 
@@ -1069,10 +1128,45 @@ elem.property(bgph, "Update", function(i, x, y, s, n)
 	local tempC = sim.partProperty(i, "temp") - 273.15
 
 
+	local vx = sim.partProperty(i, "vx")
+	local vy = sim.partProperty(i, "vy")
+	local totalVel = math.sqrt(vx ^ 2 + vy ^ 2)
+
+	local vdx = sim.partProperty(i, "pavg1") - totalVel
+
+	sim.partProperty(i, "pavg1", totalVel)
+	-- print(vdx)
+	-- print(totalVel)
+
+	if vdx > 0.5 then
+		local neighbors = {}
+		if vdx > 1 then
+			neighbors = sim.partNeighbours(x, y, 2)
+		else
+			neighbors = sim.partNeighbours(x, y, 1)
+		end
+		for k,d in pairs(neighbors) do
+			local type = sim.partProperty(d, "type")
+			if bit.band(elements.property(type, "Properties"), elements.TYPE_SOLID) ~= 0 and type ~= grph then
+				local blend = math.min(vdx - 0.5, 1)
+
+				local tr, tg, tb, ta = graphics.getColors(0xFF2E273F)
+				local mr, mg, mb, ma = graphics.getColors(sim.partProperty(d, "dcolour"))
+
+				local nr = (tr*blend) + (mr*(1 - blend))
+				local ng = (tg*blend) + (mg*(1 - blend))
+				local nb = (tb*blend) + (mb*(1 - blend))
+				local na = (ta*blend) + (ma*(1 - blend))
+				
+				sim.partProperty(d, "dcolour", graphics.getHexColor(nr, ng, nb, na))
+			end
+		end
+	end
 
 	if sim.partProperty(i, "life") >= brokenGraphBurnHealth then
 		local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
-		if tempC > 1000 or randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+		local pressure = simulation.pressure(x / 4, y / 4)
+		if (tempC > 1000 and pressure > -2) or randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
 			sim.partProperty(i, "life", brokenGraphBurnHealth - 1)
 			sim.partProperty(i, "tmp", 10 + math.random(20))
 		end
@@ -1104,14 +1198,6 @@ elem.property(bgph, "Update", function(i, x, y, s, n)
 			sim.partProperty(i, "tmp", 10 + math.random(20))
 		end
 	end
-
-
-	if tempC < 400 then
-		sim.partProperty(i, "pavg0", 0)
-	end
-
-	local burnHealth = sim.partProperty(i, "pavg0")
-
 end)
 
 elem.property(bgph, "Graphics", graphiteGraphics)
@@ -1141,4 +1227,3 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
-
