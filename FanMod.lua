@@ -845,16 +845,19 @@ local bitNegaterMap =
 
 local hoveredPart = -1
 
+local pavg0Debug = false
 event.register(event.tick, function()
-	local gx, gy = sim.adjustCoords(tpt.mousex, tpt.mousey)
-	local part = sim.pmap(gx, gy)
+	if pavg0Debug then
+		local gx, gy = sim.adjustCoords(tpt.mousex, tpt.mousey)
+		local part = sim.pmap(gx, gy)
 
-	if part ~= nil then
-		local text = bit.tohex(sim.partProperty(part, "pavg1"))
-		graphics.drawText(10, 10, text)
-		hoveredPart = part
-	else
-		hoveredPart = -1
+		if part ~= nil then
+			local text = bit.tohex(sim.partProperty(part, "pavg1"))
+			graphics.drawText(10, 10, text)
+			hoveredPart = part
+		else
+			hoveredPart = -1
+		end
 	end
 end)  
 
