@@ -469,6 +469,80 @@ local shieldPatternFunctions = {
 		end
 		return {}
 	end,
+	[0x400] = function(x, y, range, ctype) -- Get all parts if any don't match ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
+		if #nearbyCtype < #nearby then
+			return nearby
+		end
+		return {}
+	end,
+	[0x500] = function(x, y, range, ctype) -- Get all parts if all match ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
+		if #nearbyCtype == #nearby then
+			return nearby
+		end
+		return {}
+	end,
+	[0x600] = function(x, y, range, ctype) -- Get all parts in range
+		local nearby = sim.partNeighbours(x, y, range)
+		return nearby
+	end,
+	[0x700] = function(x, y, range, ctype) -- Get all parts in the same menu section as ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local pass = {}
+		for k,d in pairs(nearby) do
+			if elem.property(sim.partProperty(d, "type"), "MenuSection") == elem.property(ctype, "MenuSection") then
+				table.insert(pass, d)
+			end
+		end
+		return pass
+	end,
+	[0x800] = function(x, y, range, ctype) -- Get all parts in the same state of matter as ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local pass = {}
+		for k,d in pairs(nearby) do
+			local ctypeState = bit.band(elem.property(ctype, "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
+			local dState = bit.band(elem.property(sim.partProperty(d, "type"), "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
+			if ctypeState == dState then
+				table.insert(pass, d)
+			end
+		end
+		return pass
+	end,
+	[0x900] = function(x, y, range, ctype) -- Get all parts in a different state of matter as ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local pass = {}
+		for k,d in pairs(nearby) do
+			local ctypeState = bit.band(elem.property(ctype, "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
+			local dState = bit.band(elem.property(sim.partProperty(d, "type"), "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
+			if ctypeState ~= dState then
+				table.insert(pass, d)
+			end
+		end
+		return pass
+	end,
+	[0xA00] = function(x, y, range, ctype) -- Get all parts hotter than the ctype as a number
+		local nearby = sim.partNeighbours(x, y, range)
+		local pass = {}
+		for k,d in pairs(nearby) do
+			if sim.partProperty(d, "temp") > ctype then
+				table.insert(pass, d)
+			end
+		end
+		return pass
+	end,
+	[0xB00] = function(x, y, range, ctype) -- Get all parts colder than the ctype as a number
+		local nearby = sim.partNeighbours(x, y, range)
+		local pass = {}
+		for k,d in pairs(nearby) do
+			if sim.partProperty(d, "temp") < ctype then
+				table.insert(pass, d)
+			end
+		end
+		return pass
+	end,
 }
 
 local shieldFunctions = {
@@ -589,8 +663,8 @@ local shieldActionFunctions = {
 		return true
 	end,
 	[0x002] = function(d, x, y) -- Suspend
-		sim.partProperty(d, "vx", -sim.partProperty(d, "vx"))
-		sim.partProperty(d, "vy", -sim.partProperty(d, "vy"))
+		sim.partProperty(d, "vx", 0)
+		sim.partProperty(d, "vy", 0)
 		return true
 	end,
 	[0x003] = function(d, x, y) -- Detect
@@ -692,6 +766,7 @@ elem.property(ffld, "Name", "FFLD")
 elem.property(ffld, "Description", "Forcefield generator. Repels parts of its ctype. Temp sets range, TMP sets mode. Toggle with PSCN/NSCN or ARAY.")
 elem.property(ffld, "Colour", 0x00de94)
 elem.property(ffld, "HeatConduct", 0)
+elem.property(ffld, "Hardness", 0)
 elem.property(ffld, "MenuSection", elem.SC_FORCE)
 
 elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT + elem.PROP_LIFE_DEC)
@@ -880,8 +955,16 @@ elem.property(ffld, "Graphics", function (i, r, g, b)
 end)
 
 elem.property(ffld, "CtypeDraw", function(i, t)
-	if bit.band( elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
-		sim.partProperty(i, "ctype", t)
+	pattern = bit.band(sim.partProperty(i, "tmp"), 0xF00)
+
+	if pattern == 0xA00 or pattern == 0xB00 then
+		if bit.band( elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
+			sim.partProperty(i, "ctype", elem.property(t, "Temperature"))
+		end
+	else
+		if bit.band( elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
+			sim.partProperty(i, "ctype", t)
+		end
 	end
 end)
 
