@@ -491,57 +491,87 @@ local shieldPatternFunctions = {
 	end,
 	[0x700] = function(x, y, range, ctype) -- Get all parts in the same menu section as ctype
 		local nearby = sim.partNeighbours(x, y, range)
-		local pass = {}
+		local result = {}
 		for k,d in pairs(nearby) do
 			if elem.property(sim.partProperty(d, "type"), "MenuSection") == elem.property(ctype, "MenuSection") then
-				table.insert(pass, d)
+				table.insert(result, d)
 			end
 		end
-		return pass
+		return result
 	end,
 	[0x800] = function(x, y, range, ctype) -- Get all parts in the same state of matter as ctype
 		local nearby = sim.partNeighbours(x, y, range)
-		local pass = {}
+		local result = {}
 		for k,d in pairs(nearby) do
 			local ctypeState = bit.band(elem.property(ctype, "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
 			local dState = bit.band(elem.property(sim.partProperty(d, "type"), "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
 			if ctypeState == dState then
-				table.insert(pass, d)
+				table.insert(result, d)
 			end
 		end
-		return pass
+		return result
 	end,
 	[0x900] = function(x, y, range, ctype) -- Get all parts in a different state of matter as ctype
 		local nearby = sim.partNeighbours(x, y, range)
-		local pass = {}
+		local result = {}
 		for k,d in pairs(nearby) do
 			local ctypeState = bit.band(elem.property(ctype, "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
 			local dState = bit.band(elem.property(sim.partProperty(d, "type"), "Properties"), elem.TYPE_GAS + elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID + elem.TYPE_ENERGY)
 			if ctypeState ~= dState then
-				table.insert(pass, d)
+				table.insert(result, d)
 			end
 		end
-		return pass
+		return result
 	end,
 	[0xA00] = function(x, y, range, ctype) -- Get all parts hotter than the ctype as a number
 		local nearby = sim.partNeighbours(x, y, range)
-		local pass = {}
+		local result = {}
 		for k,d in pairs(nearby) do
 			if sim.partProperty(d, "temp") > ctype then
-				table.insert(pass, d)
+				table.insert(result, d)
 			end
 		end
-		return pass
+		return result
 	end,
 	[0xB00] = function(x, y, range, ctype) -- Get all parts colder than the ctype as a number
 		local nearby = sim.partNeighbours(x, y, range)
-		local pass = {}
+		local result = {}
 		for k,d in pairs(nearby) do
 			if sim.partProperty(d, "temp") < ctype then
-				table.insert(pass, d)
+				table.insert(result, d)
 			end
 		end
-		return pass
+		return result
+	end,
+	[0xC00] = function(x, y, range, ctype) -- Get all parts matching LMB element
+		local mouseType = elem[tpt.selectedl]
+		if mouseType ~= nil then
+			local nearbyCtype = sim.partNeighbours(x, y, range, mouseType)
+			return nearbyCtype
+		end
+		return {}
+	end,
+	[0xD00] = function(x, y, range, ctype) -- Get all parts not matching LMB element
+		local mouseType = elem[tpt.selectedl]
+		local nearby = sim.partNeighbours(x, y, range)
+		-- local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
+		local result = {}
+		for k,p in pairs(nearby) do
+			if sim.partProperty(p, "type") ~= mouseType then
+				table.insert(result, p)
+			end
+		end
+		return result
+	end,
+	[0xE00] = function(x, y, range, ctype) -- Get all parts in a different menu section as ctype
+		local nearby = sim.partNeighbours(x, y, range)
+		local result = {}
+		for k,d in pairs(nearby) do
+			if elem.property(sim.partProperty(d, "type"), "MenuSection") ~= elem.property(ctype, "MenuSection") then
+				table.insert(result, d)
+			end
+		end
+		return result
 	end,
 }
 
