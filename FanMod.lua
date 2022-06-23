@@ -7,13 +7,15 @@ local smdb = elem.allocate("FanMod", "SMDB") -- Super mega death bomb
 local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of its explosion
 
 local trit = elem.allocate("FanMod", "TRIT") -- Tritium
-local ltrt = elem.allocate("FanMod", "LTRT") -- Liquid Tritium
+local ltrt = elem.allocate("FanMod", "LTRT") -- Liquid Tritium. Hidden, created by pressurizing TRIT
 
 local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
 
-
 local grph = elem.allocate("FanMod", "GRPH") -- Graphite
 local bgph = elem.allocate("FanMod", "BGPH") -- Broken Graphite
+
+local melt = elem.allocate("FanMod", "MELT") -- Melt Powder
+local mlva = elem.allocate("FanMod", "MLVA") -- Melting Lava
 
 -- Utilities
 
@@ -70,14 +72,15 @@ event.register(event.keyrelease, function(key, scan, rep, shift, ctrl, alt)
 	end
 end)  
 
-local hasShownFfldWarning = false
+-- local hasShownFfldWarning = false
 
-event.register(event.tick, function()
-	if not hasShownFfldWarning and mouseButtonType[1]() == "FANMOD_PT_FFLD" or mouseButtonType[2]() == "FANMOD_PT_FFLD" or mouseButtonType[3]() == "FANMOD_PT_FFLD" then
-		-- print("Warning: Having FFLD selected may cause some issues with copy/paste or stamps.")
-		hasShownFfldWarning = true
-	end
-end)  
+-- FFLD placement may still have some edge-case problems. Test further?
+-- event.register(event.tick, function()
+-- 	if not hasShownFfldWarning and mouseButtonType[1]() == "FANMOD_PT_FFLD" or mouseButtonType[2]() == "FANMOD_PT_FFLD" or mouseButtonType[3]() == "FANMOD_PT_FFLD" then
+-- 		-- print("Warning: Having FFLD selected may cause some issues with copy/paste or stamps.")
+-- 		hasShownFfldWarning = true
+-- 	end
+-- end)  
 
 local shiftTriangleHold = false
 local shiftTriangleID = -1
@@ -594,6 +597,16 @@ function isInsideFieldShape(size, shape, dx, dy)
 
 end
 
+-- ctype: The element that this forcefield protects against.
+-- temp: Field radius.
+-- life: Used for the flashing effect when the forcefield activates or deactivates.
+-- tmp: Forcefield mode. To be reformatted.
+	-- OLD: 0xPPSSSMMM
+	-- NEW: 0xPSM (Mistook hex literals for binary; wasted a lot of space.)
+-- tmp2: Whether or not the forcefield is enabled.
+-- pavg0: Whether or not there are any (matching) particles inside the forcefield. Used for graphics.
+-- pavg1: Whether to use new or old forcefield mode encoding (not yet implemented)
+
 elem.element(ffld, elem.element(elem.DEFAULT_PT_CLNE))
 elem.property(ffld, "Name", "FFLD")
 elem.property(ffld, "Description", "Forcefield generator. Repels parts of its ctype. Temp sets range, TMP sets mode. Toggle with PSCN/NSCN or ARAY.")
@@ -769,6 +782,13 @@ local graphiteBurnHealth = 40
 local graphitePressureHealth = 10
 local graphiteExtinguishTime = 30
 local brokenGraphBurnHealth = 60
+
+-- Likely the most complicated element in this mod
+-- life: Not used by the main update function so it can safely transform into LAVA or SPRK and back.
+-- tmp: Burn health. Decrements once for every flame particle created.
+-- tmp2: Pressure health. Has a 1/2 chance of decrementing every frame the particle is exposed to 80+ pressure.
+-- pavg0: Used for a "graphite cycle" that makes sure sparks running through graphite are not subject to particle order bias.
+-- pavg1: Used for the direction that sparks are travelling through the material as well as a dead space behind each spark, similarly to how other conductors use life.
 
 elem.element(grph, elem.element(elem.DEFAULT_PT_DMND))
 elem.property(grph, "Name", "GRPH")
@@ -1109,6 +1129,10 @@ elem.property(elem.DEFAULT_PT_BCOL, "Update", function(i, x, y, s, n)
 end)
 
 
+-- life: Used for burn time, similar to coal. At 60, does nothing. Below 60, counts down and emits fire, disappearing at 0.
+-- tmp: Used while burning. Starts at a random value between 11 and 30. Counts down every frame that this particle has no neighbors of the same type. At zero, explodes.
+-- pavg1: Speed on the previous frame. Used to calculate if the particle has impacted a surface so that it can draw on it.
+
 elem.element(bgph, elem.element(elem.DEFAULT_PT_DUST))
 elem.property(bgph, "Name", "BGPH")
 elem.property(bgph, "Description", "Broken graphite. Can color surfaces dark. Very flammable.")
@@ -1222,11 +1246,142 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 
 	if ctype == elem.DEFAULT_PT_IRON then
 		if math.random(20) == 1 then
-			local randomNeighbor = sim.pmap(x + math.random(5) - 3, y + math.random(5) - 4)
+			local randomNeighbor = sim.pmap(x + math.random(5) - 3, y + math.random(5) - 3)
 			if randomNeighbor ~= nil and sim.partProperty(randomNeighbor, "type") == grph then
 				sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
 				sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_BCOL)
 			end
 		end
 	end
+end)
+
+local waters = {
+	[elem.DEFAULT_PT_WATR] = true,
+	[elem.DEFAULT_PT_DSTW] = true,
+	[elem.DEFAULT_PT_SLTW] = true,
+	[elem.DEFAULT_PT_BUBW] = true,
+	[elem.DEFAULT_PT_WTRV] = true,
+}
+
+-- tmp: Activatedness.
+elem.element(melt, elem.element(elem.DEFAULT_PT_SAND))
+elem.property(melt, "Name", "MELT")
+elem.property(melt, "Description", "Melting powder. Rapidly boils water. Activated by cold or lava, causing it to heat up and convert molten materials.")
+elem.property(melt, "Colour", 0xFBA153)
+elem.property(melt, "MenuSection", elem.SC_POWDERS)
+elem.property(melt, "Properties", elem.TYPE_PART)
+elem.property(melt, "HeatConduct", 5)
+elem.property(melt, "HighTemperature", 273.15 + 500)
+elem.property(melt, "HighTemperatureTransition", mlva)
+
+elem.property(melt, "Update", function(i, x, y, s, n)
+
+	local tmp = sim.partProperty(i, "tmp")
+
+	local rx = x + math.random(3) - 2
+	local ry = y + math.random(3) - 2
+	local randomNeighbor = sim.pmap(rx, ry)
+	if randomNeighbor ~= nil then
+		if waters[sim.partProperty(randomNeighbor, "type")] then
+			local temp = sim.partProperty(randomNeighbor, "temp")
+			sim.partProperty(randomNeighbor, "temp", temp + 0.8 * (273.15 + 400 - temp))
+		end
+
+		if math.random(60) == 1 and sim.partProperty(randomNeighbor, "type") == elem.DEFAULT_PT_LAVA then
+			sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
+		end
+	elseif math.random(400) <= tmp then
+		local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
+	end
+
+	if math.random(60) == 1 and sim.partProperty(i, "temp") < 273.15 - 40 and tmp < 100 then
+		sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
+	end
+
+	sim.partProperty(i, "temp", sim.partProperty(i, "temp") + tmp / 4)
+
+	if math.random() < sim.partProperty(i, "tmp") / 200 then
+		sim.partChangeType(i, mlva)
+	end
+end)
+
+elem.property(melt, "Graphics", function (i, r, g, b)
+
+	local colr = r
+	local colg = g
+	local colb = b
+
+	local firea = 0
+	
+	local pixel_mode = ren.PMODE_FLAT
+
+	local tmp = sim.partProperty(i, "tmp")
+
+	if math.random(100) <= tmp then
+		colr = 255
+		colg = 255
+		colb = 255
+		firea = 100
+		pixel_mode = ren.PMODE_FLAT + ren.PMODE_FLARE
+	end
+
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+end)
+
+
+elem.element(mlva, elem.element(elem.DEFAULT_PT_LAVA))
+elem.property(mlva, "Name", "MLVA")
+elem.property(mlva, "Description", "Melting lava.")
+elem.property(mlva, "Colour", 0xFF7F11)
+elem.property(mlva, "MenuSection", -1)
+elem.property(mlva, "Properties", elem.TYPE_LIQUID)
+elem.property(mlva, "HeatConduct", 5)
+-- elem.property(mlva, "LowTemperature", 273.15 + 500)
+-- elem.property(mlva, "LowTemperatureTransition", melt)
+
+elem.property(mlva, "Update", function(i, x, y, s, n)
+
+	local tmp = sim.partProperty(i, "tmp")
+	local temp = sim.partProperty(i, "temp")
+
+	if math.random(10) == 1 and tmp < 100 then
+		sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
+	end
+
+	if math.random(192) == 1 then
+		sim.partChangeType(i, melt)
+		sim.partProperty(i, "temp", temp + 200)
+	else
+		sim.partProperty(i, "temp", temp + tmp / 4)
+	end
+
+	local rx = x + math.random(3) - 2
+	local ry = y + math.random(3) - 2
+	local randomNeighbor = sim.pmap(rx, ry)
+	if randomNeighbor ~= nil then
+		if math.random(50) == 1 then
+			local type = sim.partProperty(randomNeighbor, "type")
+			if type == elem.DEFAULT_PT_LAVA then
+				sim.partProperty(randomNeighbor, "type", mlva)
+			elseif elem.property(type, "HighTemperatureTransition") == elem.DEFAULT_PT_LAVA then
+				sim.partProperty(randomNeighbor, "temp", sim.partProperty(randomNeighbor, "temp") + 500)
+			end
+		end
+	elseif math.random(400) <= tmp then
+		local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
+		sim.partProperty(smoke, "temp", temp)
+	end
+end)
+
+elem.property(mlva, "Graphics", function (i, r, g, b)
+
+	local colr = r
+	local colg = g
+	local colb = b
+
+	local firea = 10
+	
+	local pixel_mode = ren.PMODE_FLAT + ren.FIRE_ADD
+
+	return 1,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
