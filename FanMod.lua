@@ -117,9 +117,10 @@ event.register(event.mousedown, function(x, y, button)
 	copyInterfaceActive = false
 end) 
 
+-- Changes the direction of the triangular forcefield when drawn with a line
 event.register(event.mouseup, function(x, y, button, reason)
 	if shiftTriangleHold then
-		print("Gettin Printed")
+		-- print("Gettin Printed")
 		-- mouseDown = true
 		local gx, gy = sim.adjustCoords(x, y)
 		local px, py = sim.partPosition(shiftTriangleID)
@@ -131,7 +132,7 @@ event.register(event.mouseup, function(x, y, button, reason)
 		elseif gx < 0 and -gx > math.abs(gy) then
 			sim.partProperty(shiftTriangleID, "tmp", 0x070)
 		elseif gy > 0 then
-			sim.partProperty(shiftTriangleID, "tmp", 0x040)
+			sim.partProperty(shiftTriangleID, "tmp", 0x050)
 		else
 			sim.partProperty(shiftTriangleID, "tmp", 0x040)
 		end
@@ -1691,4 +1692,41 @@ elem.property(mlva, "Graphics", function (i, r, g, b)
 	local pixel_mode = ren.PMODE_FLAT + ren.FIRE_ADD + ren.PMODE_BLUR
 
 	return 1,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+end)
+
+
+
+
+
+
+-- SEEEEEEEEEEEEECRETS!!!!!!!!!!
+
+local pink = elem.allocate("FanMod", "PINK")
+
+-- https://www.youtube.com/watch?v=nCR9zMU2Q_M
+elem.element(pink, elem.element(elem.DEFAULT_PT_DMND))
+elem.property(pink, "Name", "PINK")
+elem.property(pink, "Description", "Pink sand. A visitor from a pond far, far away...")
+elem.property(pink, "Colour", 0xff00ff)
+elem.property(pink, "Update", function(i, x, y, s, n)
+	local bx = round(x)
+	local by = round(y)
+	local below = sim.pmap(bx, by + 1)
+	if below == nil then
+		local new = sim.partCreate(-1, bx, by + 1, pink)
+		if new ~= -1 then
+			sim.partKill(i)
+			return
+		end
+	end
+
+	local slide = math.random(-1, 1)
+	local slidePart = sim.pmap(bx + slide, by + 1)
+	if slidePart == nil then
+		local new = sim.partCreate(-1, bx + slide, by + 1, pink)
+		if new ~= -1 then
+			sim.partKill(i)
+			return
+		end
+	end
 end)
