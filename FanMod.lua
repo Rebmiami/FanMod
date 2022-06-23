@@ -1477,7 +1477,8 @@ local mLavaNeutralizersCtype = {
 	[elem.DEFAULT_PT_SNOW] = true,
 }
 
--- tmp: Activatedness.
+-- tmp: Heat factor. As it increases, heats up faster. Increases when chilled or melted.
+-- tmp2: 0 if normal, 1 if neutralized. Cools down and no longer heats up if neutralized.
 elem.element(melt, elem.element(elem.DEFAULT_PT_SAND))
 elem.property(melt, "Name", "MELT")
 elem.property(melt, "Description", "Melting powder. Rapidly boils water. Activated by cold or lava, causing it to heat up and convert molten materials.")
