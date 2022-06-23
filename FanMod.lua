@@ -96,18 +96,19 @@ event.register(event.mousedown, function(x, y, button)
 			local i = sim.partCreate(-1, gx, gy, ffld)
 
 			if tpt.brushID == 0 then
-				sim.partProperty(i, "tmp", 0x00001000);
+				sim.partProperty(i, "tmp", 0x010);
 			elseif tpt.brushID == 1 then
-				sim.partProperty(i, "tmp", 0x00010000);
+				sim.partProperty(i, "tmp", 0x020);
 			elseif tpt.brushID == 2 then
-				sim.partProperty(i, "tmp", 0x00100000);
+				sim.partProperty(i, "tmp", 0x040);
 				if shiftHeld then
 					shiftTriangleHold = true
 					shiftTriangleID = i
 				end
 			end
-			 -- TODO: Make forcefield shape dependent on brush shape
+
 			sim.partProperty(i, "temp", math.max(tpt.brushx, tpt.brushy) + 273.15 + 1);
+			sim.partProperty(i, "pavg1", 1) -- USE NEW MODE ENCODING
 			return false
 		end
 	end
@@ -126,13 +127,13 @@ event.register(event.mouseup, function(x, y, button, reason)
 		gy = gy - py
 
 		if gx > 0 and gx > math.abs(gy) then
-			sim.partProperty(shiftTriangleID, "tmp", 0x00110000)
+			sim.partProperty(shiftTriangleID, "tmp", 0x060)
 		elseif gx < 0 and -gx > math.abs(gy) then
-			sim.partProperty(shiftTriangleID, "tmp", 0x00111000)
+			sim.partProperty(shiftTriangleID, "tmp", 0x070)
 		elseif gy > 0 then
-			sim.partProperty(shiftTriangleID, "tmp", 0x00101000)
+			sim.partProperty(shiftTriangleID, "tmp", 0x040)
 		else
-			sim.partProperty(shiftTriangleID, "tmp", 0x00100000)
+			sim.partProperty(shiftTriangleID, "tmp", 0x040)
 		end
 		
 	end
@@ -413,13 +414,35 @@ elem.property(elem.DEFAULT_PT_NEUT, "Update", function(i, x, y, s, n)
 	end
 end)
 
+local oldModeFormatMap = {
+	[0x00000000] = 0x000,
+	[0x01000000] = 0x100,
+	[0x10000000] = 0x200,
+	[0x11000000] = 0x300,
+	[0x000000] = 0x00,
+	[0x001000] = 0x10,
+	[0x010000] = 0x20,
+	[0x011000] = 0x30,
+	[0x100000] = 0x40,
+	[0x101000] = 0x50,
+	[0x110000] = 0x60,
+	[0x111000] = 0x70,
+	[0x000] = 0x0,
+	[0x001] = 0x1,
+	[0x010] = 0x2,
+	[0x011] = 0x3,
+	[0x100] = 0x4,
+	[0x101] = 0x5,
+	[0x110] = 0x6,
+	[0x111] = 0x7,
+}
 
 local shieldPatternFunctions = {
-	[0x00000000] = function(x, y, range, ctype) -- Get all parts matching ctype
+	[0x000] = function(x, y, range, ctype) -- Get all parts matching ctype
 		local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
 		return nearbyCtype
 	end,
-	[0x01000000] = function(x, y, range, ctype) -- Get all parts not matching ctype
+	[0x100] = function(x, y, range, ctype) -- Get all parts not matching ctype
 		local nearby = sim.partNeighbours(x, y, range)
 		-- local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
 		local result = {}
@@ -430,7 +453,7 @@ local shieldPatternFunctions = {
 		end
 		return result
 	end,
-	[0x10000000] = function(x, y, range, ctype) -- Get all parts if any match ctype
+	[0x200] = function(x, y, range, ctype) -- Get all parts if any match ctype
 		local nearby = sim.partNeighbours(x, y, range)
 		local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
 		if #nearbyCtype > 0 then
@@ -438,7 +461,7 @@ local shieldPatternFunctions = {
 		end
 		return {}
 	end,
-	[0x11000000] = function(x, y, range, ctype) -- Get all parts if none match ctype
+	[0x300] = function(x, y, range, ctype) -- Get all parts if none match ctype
 		local nearby = sim.partNeighbours(x, y, range)
 		local nearbyCtype = sim.partNeighbours(x, y, range, ctype)
 		if #nearbyCtype == 0 then
@@ -449,77 +472,106 @@ local shieldPatternFunctions = {
 }
 
 local shieldFunctions = {
-	[0x000000] = function(size, dx, dy) -- None
+	[0x000] = function(size, dx, dy) -- None
 		return false 
 	end,
-	[0x001000] = function(size, dx, dy)  -- Circle
+	[0x010] = function(size, dx, dy)  -- Circle
 		local dist = math.sqrt(dx ^ 2 + dy ^ 2)
 		return dist < size
 	end,
-	[0x010000] = function(size, dx, dy) -- Square
+	[0x020] = function(size, dx, dy) -- Square
 		return true 
 	end,
-	[0x011000] = function(size, dx, dy) -- Diamond
+	[0x030] = function(size, dx, dy) -- Diamond
 		local dist = math.abs(dx) + math.abs(dy)
 		return dist < size
 	end,
-	[0x100000] = function(size, dx, dy) -- Triangle (up)
+	[0x040] = function(size, dx, dy) -- Triangle (up)
 		local dist = math.abs(dx) - dy / 2 + size / 2
 		return dist < size
 	end,
-	[0x101000] = function(size, dx, dy) -- Triangle (down)
+	[0x050] = function(size, dx, dy) -- Triangle (down)
 		local dist = math.abs(dx) + dy / 2 + size / 2
 		return dist < size
 	end,
-	[0x110000] = function(size, dx, dy) -- Triangle (right)
+	[0x060] = function(size, dx, dy) -- Triangle (right)
 		local dist = math.abs(dy) + dx / 2 + size / 2
 		return dist < size
 	end,
-	[0x111000] = function(size, dx, dy) -- Triangle (left)
+	[0x070] = function(size, dx, dy) -- Triangle (left)
 		local dist = math.abs(dy) - dx / 2 + size / 2
 		return dist < size
 	end,
 }
 
 local shieldDrawFunctions = {
-	[0x000000] = function(size, x, y, r, g, b, a) -- None
+	[0x000] = function(size, x, y, r, g, b, a) -- None
 
 	end,
-	[0x001000] = function(size, x, y, r, g, b, a)  -- Circle
+	[0x010] = function(size, x, y, r, g, b, a)  -- Circle
 		graphics.drawCircle(x, y, size + 1, size + 1, r, g, b, a) 
 	end,
-	[0x010000] = function(size, x, y, r, g, b, a) -- Square
+	[0x020] = function(size, x, y, r, g, b, a) -- Square
 		graphics.drawRect(x - size, y - size, size * 2 + 1, size * 2 + 1, r, g, b, a)
 	end,
-	[0x011000] = function(size, x, y, r, g, b, a) -- Diamond
+	[0x030] = function(size, x, y, r, g, b, a) -- Diamond
 		graphics.drawLine(x + size, y, x, y + size, r, g, b, a)
 		graphics.drawLine(x, y + size, x - size, y, r, g, b, a)
 		graphics.drawLine(x - size, y, x, y - size, r, g, b, a)
 		graphics.drawLine(x, y - size, x + size, y, r, g, b, a)
 		return nil
 	end,
-	[0x100000] = function(size, x, y, r, g, b, a) -- Triangle (up)
+	[0x040] = function(size, x, y, r, g, b, a) -- Triangle (up)
 		graphics.drawLine(x + size, y + size, x, y - size, r, g, b, a)
 		graphics.drawLine(x, y - size, x - size, y + size, r, g, b, a)
 		graphics.drawLine(x - size, y + size, x + size, y + size, r, g, b, a)
 	end,
-	[0x101000] = function(size, x, y, r, g, b, a) -- Triangle (down)
+	[0x050] = function(size, x, y, r, g, b, a) -- Triangle (down)
 		graphics.drawLine(x + size, y - size, x, y + size, r, g, b, a)
 		graphics.drawLine(x, y + size, x - size, y - size, r, g, b, a)
 		graphics.drawLine(x - size, y - size, x + size, y - size, r, g, b, a)
 	end,
-	[0x110000] = function(size, x, y, r, g, b, a) -- Triangle (right)
+	[0x060] = function(size, x, y, r, g, b, a) -- Triangle (right)
 		graphics.drawLine(x - size, y + size, x + size, y, r, g, b, a)
 		graphics.drawLine(x + size, y, x - size, y - size, r, g, b, a)
 		graphics.drawLine(x - size, y - size, x - size, y + size, r, g, b, a)
 	end,
-	[0x111000] = function(size, x, y, r, g, b, a) -- Triangle (left)
+	[0x070] = function(size, x, y, r, g, b, a) -- Triangle (left)
 		graphics.drawLine(x + size, y + size, x - size, y, r, g, b, a)
 		graphics.drawLine(x - size, y, x + size, y - size, r, g, b, a)
 		graphics.drawLine(x + size, y - size, x + size, y + size, r, g, b, a)
 	end,
 }
 
+-- Used for action 0x00A (Highlight).
+local highlighted = {}
+local updateHighlighted = true
+local highlightedDrawn = false
+
+event.register(event.tick, function()
+	highlightedDrawn = false
+end)  
+
+local pipeTypes = {
+	[elem.DEFAULT_PT_PIPE] = true,
+	[elem.DEFAULT_PT_PPIP] = true
+}
+
+function transferPartToPipe(part, pipe)
+	if sim.partProperty(pipe, "ctype") == 0 then
+		sim.partProperty(pipe, "ctype", sim.partProperty(part, "type"))
+		sim.partProperty(pipe, "temp", sim.partProperty(part, "temp"))
+		sim.partProperty(pipe, "tmp2", sim.partProperty(part, "life"))
+		sim.partProperty(pipe, "pavg0", sim.partProperty(part, "tmp"))
+		sim.partProperty(pipe, "pavg1", sim.partProperty(part, "ctype"))
+		sim.partKill(part)
+		return true
+	end
+	return false
+end
+
+-- Return true: continue processing particles after this one
+-- Return false: stop processing particles after this one
 local shieldActionFunctions = {
 	[0x000] = function(d, x, y) -- Repel
 		local px, py = sim.partPosition(d)
@@ -536,12 +588,12 @@ local shieldActionFunctions = {
 		sim.partProperty(d, "life", 30)
 		return true
 	end,
-	[0x010] = function(d, x, y) -- Suspend
+	[0x002] = function(d, x, y) -- Suspend
 		sim.partProperty(d, "vx", -sim.partProperty(d, "vx"))
 		sim.partProperty(d, "vy", -sim.partProperty(d, "vy"))
 		return true
 	end,
-	[0x011] = function(d, x, y) -- Detect
+	[0x003] = function(d, x, y) -- Detect
 		for p in sim.neighbors(x, y, 2, 2) do
 			if sim.partProperty(p, "life") == 0 and bit.band(elem.property(sim.partProperty(p, "type"), "Properties"), elem.TYPE_SOLID + elem.PROP_CONDUCTS) == elem.TYPE_SOLID + elem.PROP_CONDUCTS then
 				local ctype = sim.partProperty(p, "type")
@@ -552,19 +604,19 @@ local shieldActionFunctions = {
 		end
 		return false
 	end,
-	[0x100] = function(d, x, y) -- Superheat
+	[0x004] = function(d, x, y) -- Superheat
 		if elem.property(sim.partProperty(d, "type"), "HeatConduct") ~= 0 then
 			sim.partProperty(d, "temp", 10000)
 		end
 		return true
 	end,
-	[0x101] = function(d, x, y) -- Supercool
+	[0x005] = function(d, x, y) -- Supercool
 		if elem.property(sim.partProperty(d, "type"), "HeatConduct") ~= 0 then
 			sim.partProperty(d, "temp", 0)
 		end
 		return true
 	end,
-	[0x110] = function(d, x, y) -- Encase
+	[0x006] = function(d, x, y) -- Encase
 		local px, py = sim.partPosition(d)
 		px = round(px)
 		py = round(py)
@@ -578,10 +630,38 @@ local shieldActionFunctions = {
 		sim.partProperty(d, "vy", 0)
 		return true
 	end,
-	[0x111] = function(d, x, y) -- Annihilate
+	[0x007] = function(d, x, y) -- Annihilate
 		sim.partChangeType(d, elem.DEFAULT_PT_SING)
 		sim.partProperty(d, "tmp", 50000)
 		sim.partProperty(d, "life", 0)
+		return true
+	end,
+	[0x008] = function(d, x, y) -- Attract
+		local px, py = sim.partPosition(d)
+		px = px - x
+		py = py - y
+		local fx = px / math.sqrt(px ^ 2 + py ^ 2)
+		local fy = py / math.sqrt(px ^ 2 + py ^ 2)
+		sim.partProperty(d, "vx", sim.partProperty(d, "vx") - fx)
+		sim.partProperty(d, "vy", sim.partProperty(d, "vy") - fy)
+		return true
+	end,
+	[0x009] = function(d, x, y) -- Collect
+		for p in sim.neighbors(x, y, 2, 2) do
+			if pipeTypes[sim.partProperty(p, "type")] then
+				local successfulTransfer = transferPartToPipe(d, p)
+				if successfulTransfer then
+					return true
+				end
+			end
+		end
+		return false
+	end,
+	[0x00A] = function(d, x, y) -- Highlight
+		local px, py = sim.partPosition(d)
+		px = round(px + sim.partProperty(d, "vx"))
+		py = round(py + sim.partProperty(d, "vy"))
+		table.insert(highlighted, {px, py})
 		return true
 	end,
 }
@@ -618,18 +698,16 @@ elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem
 
 elements.property(ffld, "Create", function(i, x, y, t, v)
 
-	-- if tpt.mousex == x and tpt.mousey == y and mouseDown then
-	-- 	sim.partProperty(i, "tmp", 30); -- TODO:
-	-- 	sim.partProperty(i, "temp", math.max( tpt.brushx, tpt.brushy) + 273.15);
-	-- 	mouseDown = false
-	-- else
-	-- 	sim.partKill(i)
-	-- end
 	sim.partProperty(i, "tmp2", 1)
 	sim.partProperty(i, "pavg0", 0)
 end)
 
 elem.property(ffld, "Update", function(i, x, y, s, n)
+
+	if updateHighlighted then
+		updateHighlighted = false
+		highlighted = {}
+	end
 
 	if sim.partProperty(i, "temp") < 273.15 then
 		sim.partProperty(i, "temp", 273.15)
@@ -667,15 +745,28 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 		end
 	end
 
+	local newFormat = sim.partProperty(i, "pavg1")
+
+
 	if enabled == 1 then
 
 		local ctype = sim.partProperty(i, "ctype")
 		local range = math.floor(math.max(sim.partProperty(i, "temp") - 273.15, 0))
 		local tmp = sim.partProperty(i, "tmp")
 
-		local pattern = bit.band(tmp, 0x11000000)
-		local shape = bit.band(tmp, 0x00111000)
-		local mode = bit.band(tmp, 0x00000111)
+		local pattern = 0-- = bit.band(tmp, 0x11000000)
+		local shape = 0-- = bit.band(tmp, 0x00111000)
+		local action = 0-- = bit.band(tmp, 0x00000111)
+
+		if newFormat == 1 then
+			pattern = bit.band(tmp, 0xF00)
+			shape = bit.band(tmp, 0x0F0)
+			action = bit.band(tmp, 0x00F)
+		else
+			pattern = oldModeFormatMap[bit.band(tmp, 0x11000000)]
+			shape = oldModeFormatMap[bit.band(tmp, 0x00111000)]
+			action = oldModeFormatMap[bit.band(tmp, 0x00000111)]
+		end
 
 		local nearby = shieldPatternFunctions[pattern](x, y, range, ctype)
 
@@ -684,7 +775,7 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 		for k,d in pairs(nearby) do
 			local px, py = sim.partPosition(d)
 			if isInsideFieldShape(range, shape, px - x, py - y) and ffldIgnore[sim.partProperty(d, "type")] ~= true then
-				shieldActionFunctions[mode](d, x, y)
+				shieldActionFunctions[action](d, x, y)
 				any = true
 			end
 		end
@@ -704,6 +795,15 @@ end)
 
 elem.property(ffld, "Graphics", function (i, r, g, b)
 
+	if not highlightedDrawn then
+		for k,d in pairs(highlighted) do
+			graphics.drawCircle(d[1], d[2], 2, 2, 255, 0, 0, 255) 
+		end
+		updateHighlighted = true
+		highlightedDrawn = true
+	end
+
+
 	local anyParts = sim.partProperty(i, "pavg0")
 
 	local enabled = sim.partProperty(i, "tmp2")
@@ -717,13 +817,26 @@ elem.property(ffld, "Graphics", function (i, r, g, b)
 	
 	local pixel_mode = ren.PMODE_FLAT
 
+	local newFormat = sim.partProperty(i, "pavg1")
+
+
 	local ctype = sim.partProperty(i, "ctype")
 	local range = math.floor(math.max(sim.partProperty(i, "temp") - 273.15, 0))
 	local tmp = sim.partProperty(i, "tmp")
 
-	local pattern = bit.band(tmp, 0x11000000)
-	local shape = bit.band(tmp, 0x00111000)
-	local mode = bit.band(tmp, 0x00000111)
+	local pattern = 0
+	local shape = 0
+	local action = 0
+
+	if newFormat == 1 then
+		pattern = bit.band(tmp, 0xF00)
+		shape = bit.band(tmp, 0x0F0)
+		action = bit.band(tmp, 0x00F)
+	else
+		pattern = oldModeFormatMap[bit.band(tmp, 0x11000000)]
+		shape = oldModeFormatMap[bit.band(tmp, 0x00111000)]
+		action = oldModeFormatMap[bit.band(tmp, 0x00000111)]
+	end
 
 	local fieldr = 0
 	local fieldg = 0
@@ -1159,9 +1272,9 @@ elem.property(bgph, "Update", function(i, x, y, s, n)
 
 	local vx = sim.partProperty(i, "vx")
 	local vy = sim.partProperty(i, "vy")
-	local totalVel = math.sqrt(vx ^ 2 + vy ^ 2)
+	local totalVel = math.sqrt(vx ^ 2 + vy ^ 2) * 100
 
-	local vdx = sim.partProperty(i, "pavg1") - totalVel
+	local vdx = sim.partProperty(i, "pavg1") / 100 - totalVel
 
 	sim.partProperty(i, "pavg1", totalVel)
 	-- print(vdx)
