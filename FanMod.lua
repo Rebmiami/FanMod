@@ -17,6 +17,8 @@ local bgph = elem.allocate("FanMod", "BGPH") -- Broken Graphite
 local melt = elem.allocate("FanMod", "MELT") -- Melt Powder
 local mlva = elem.allocate("FanMod", "MLVA") -- Melting Lava
 
+local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
+
 -- Utilities
 
 local mouseButtonType = {
@@ -1479,8 +1481,17 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 			if randomNeighbor ~= nil and sim.partProperty(randomNeighbor, "type") == grph then
 				sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
 				sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_BCOL)
+			elseif randomNeighbor ~= nil and sim.partProperty(randomNeighbor, "type") == elem.DEFAULT_PT_LAVA and sim.partProperty(randomNeighbor, "ctype") == elem.DEFAULT_PT_PTNM then
+				sim.partProperty(i, "ctype", mmry)
+				sim.partProperty(randomNeighbor, "ctype", mmry)
 			end
 		end
+	end
+
+	if ctype == mmry then
+		sim.partProperty(i, "tmp", x)
+		sim.partProperty(i, "tmp2", y)
+		print (x, y)
 	end
 end)
 
@@ -1694,9 +1705,83 @@ elem.property(mlva, "Graphics", function (i, r, g, b)
 	return 1,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
 
+-- Life is unused for conduction reasons
+-- pavg0: Returning coefficient. Increases when the particle is heated and not at its desired position, causing it to return to it.
+-- tmp: Desired x position
+-- tmp2: Desired y position
+elem.element(mmry, elem.element(elem.DEFAULT_PT_GOO))
+elem.property(mmry, "Name", "MEND")
+elem.property(mmry, "Description", "Memory alloy. Deforms under pressure, but returns to its original shape when heated.")
+elem.property(mmry, "Colour", 0x2F7457)
+elem.property(mmry, "MenuSection", elem.SC_SOLIDS)
+elem.property(mmry, "Properties", elem.TYPE_SOLID + elem.PROP_CONDUCTS + elem.PROP_HOT_GLOW + elem.PROP_LIFE_DEC)
+elem.property(mmry, "HighTemperature", 273.15 + 1900)
+elem.property(mmry, "HighTemperatureTransition", elem.DEFAULT_PT_LAVA)
+
+elem.property(mmry, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", x)
+	sim.partProperty(i, "tmp2", y)
+end)
+elem.property(mmry, "Update", function(i, x, y, s, n)
+
+	-- if (!parts[i].life && sim->pv[y/CELL][x/CELL]>1.0f)
+	-- 	parts[i].life = RNG::Ref().between(300, 379);
+	if math.abs(sim.pressure(x / sim.CELL, y / sim.CELL)) > 0.03 then
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + 0.1 * sim.velocityX(x / 4, y / 4))
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + 0.1 * sim.velocityY(x / 4, y / 4))
+	end
+	local desx = sim.partProperty(i, "tmp")
+	local desy = sim.partProperty(i, "tmp2")
+
+	if round(x) - desx == 0 and round(y) - desy == 0 then
+		sim.partProperty(i, "pavg0", math.max(sim.partProperty(i, "pavg0") - 1, 0))
+	elseif sim.partProperty(i, "temp") > 273.15 + 60 then
+		sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 0.002 * (-sim.partProperty(i, "temp")))
+		sim.partProperty(i, "pavg0", math.min(sim.partProperty(i, "pavg0") + 1, 30))
+		sim.partProperty(i, "life", 30)
+	else
+		sim.partProperty(i, "pavg0", math.max(sim.partProperty(i, "pavg0") - 1, 0))
+		sim.partProperty(i, "life", 30)
+	end
+
+	-- Permanently deform at very high temperatures
+	if sim.partProperty(i, "temp") > 273.15 + 1700 then
+		sim.partProperty(i, "tmp", x)
+		sim.partProperty(i, "tmp2", y)
+	end
+	
+	local overheat = 1 - math.max( sim.partProperty(i, "temp") - 273.15 - 1000, 0) / 800
+	local seek = sim.partProperty(i, "pavg0") / 300 * overheat
+	sim.partProperty(i, "vx", sim.partProperty(i, "vx") + seek * (desx - x + (math.random() - 0.5) * 0.1))
+	sim.partProperty(i, "vy", sim.partProperty(i, "vy") + seek * (desy - y + (math.random() - 0.5) * 0.1))
+
+	if sim.partProperty(i, "pavg0") > 0 then sim.partProperty(i, "life", 30) end
+end)
+
+elem.property(mmry, "Graphics", function (i, r, g, b)
+
+	local glow = sim.partProperty(i, "pavg0") / 30
+	local colr = r + 255 * glow
+	local colg = g + 255 * glow
+	local colb = b + 255 * glow
+
+	local firea = 255 * glow
+	
+	local pixel_mode = ren.PMODE_FLAT
+	if sim.partProperty(i, "temp") > 273.15 + 60 then
+		pixel_mode = ren.PMODE_FLAT + ren.PMODE_FLARE
+	end
+
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+end)
+
+sim.can_move(mmry, mmry, 1)
+-- sim.can_move(mmry, lava, 0)
 
 
 
+-- Halogen
+-- FEC06F
 
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
