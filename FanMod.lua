@@ -1491,7 +1491,7 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 	if ctype == mmry then
 		sim.partProperty(i, "tmp", x)
 		sim.partProperty(i, "tmp2", y)
-		print (x, y)
+		-- print (x, y)
 	end
 end)
 
@@ -1714,6 +1714,8 @@ elem.property(mmry, "Name", "MEND")
 elem.property(mmry, "Description", "Memory alloy. Deforms under pressure, but returns to its original shape when heated.")
 elem.property(mmry, "Colour", 0x2F7457)
 elem.property(mmry, "MenuSection", elem.SC_SOLIDS)
+elem.property(mmry, "AirLoss", 0.99)
+elem.property(mmry, "PhotonReflectWavelengths", 0xFFFFFFFF)
 elem.property(mmry, "Properties", elem.TYPE_SOLID + elem.PROP_CONDUCTS + elem.PROP_HOT_GLOW + elem.PROP_LIFE_DEC)
 elem.property(mmry, "HighTemperature", 273.15 + 1900)
 elem.property(mmry, "HighTemperatureTransition", elem.DEFAULT_PT_LAVA)
@@ -1724,38 +1726,48 @@ elem.property(mmry, "Create", function(i, x, y, t, v)
 end)
 elem.property(mmry, "Update", function(i, x, y, s, n)
 
+	local velx = sim.velocityX(x / 4, y / 4)
+	local vely = sim.velocityY(x / 4, y / 4)
+	local temp = sim.partProperty(i, "temp")
+	local returning = sim.partProperty(i, "pavg0")
+
+	if sim.partProperty(i, "life") > 0 then
+		sim.pressure(x / sim.CELL, y / sim.CELL, sim.pressure(x / sim.CELL, y / sim.CELL) * 0.97)
+	else
+		sim.pressure(x / sim.CELL, y / sim.CELL, sim.pressure(x / sim.CELL, y / sim.CELL) * 0.8)
+	end
 	-- if (!parts[i].life && sim->pv[y/CELL][x/CELL]>1.0f)
 	-- 	parts[i].life = RNG::Ref().between(300, 379);
-	if math.abs(sim.pressure(x / sim.CELL, y / sim.CELL)) > 0.03 then
-		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + 0.1 * sim.velocityX(x / 4, y / 4))
-		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + 0.1 * sim.velocityY(x / 4, y / 4))
+	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + 0.1 * velx)
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + 0.1 * vely)
 	end
 	local desx = sim.partProperty(i, "tmp")
 	local desy = sim.partProperty(i, "tmp2")
 
 	if round(x) - desx == 0 and round(y) - desy == 0 then
-		sim.partProperty(i, "pavg0", math.max(sim.partProperty(i, "pavg0") - 1, 0))
-	elseif sim.partProperty(i, "temp") > 273.15 + 60 then
-		sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 0.002 * (-sim.partProperty(i, "temp")))
-		sim.partProperty(i, "pavg0", math.min(sim.partProperty(i, "pavg0") + 1, 30))
+		sim.partProperty(i, "pavg0", math.max(returning - 1, 0))
+	elseif temp > 273.15 + 60 then
+		sim.partProperty(i, "temp", temp + 0.002 * (-temp))
+		sim.partProperty(i, "pavg0", math.min(returning + 1, 30))
 		sim.partProperty(i, "life", 30)
 	else
-		sim.partProperty(i, "pavg0", math.max(sim.partProperty(i, "pavg0") - 1, 0))
+		sim.partProperty(i, "pavg0", math.max(returning - 1, 0))
 		sim.partProperty(i, "life", 30)
 	end
 
 	-- Permanently deform at very high temperatures
-	if sim.partProperty(i, "temp") > 273.15 + 1700 then
+	if temp > 273.15 + 1700 then
 		sim.partProperty(i, "tmp", x)
 		sim.partProperty(i, "tmp2", y)
 	end
 	
-	local overheat = 1 - math.max( sim.partProperty(i, "temp") - 273.15 - 1000, 0) / 800
-	local seek = sim.partProperty(i, "pavg0") / 300 * overheat
+	local overheat = 1 - math.max(temp - 273.15 - 1000, 0) / 800
+	local seek = returning / 300 * overheat
 	sim.partProperty(i, "vx", sim.partProperty(i, "vx") + seek * (desx - x + (math.random() - 0.5) * 0.1))
 	sim.partProperty(i, "vy", sim.partProperty(i, "vy") + seek * (desy - y + (math.random() - 0.5) * 0.1))
 
-	if sim.partProperty(i, "pavg0") > 0 then sim.partProperty(i, "life", 30) end
+	if returning > 0 then sim.partProperty(i, "life", 30) end
 end)
 
 elem.property(mmry, "Graphics", function (i, r, g, b)
