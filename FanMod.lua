@@ -19,6 +19,13 @@ local mlva = elem.allocate("FanMod", "MLVA") -- Melting Lava
 
 local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
 
+
+local halo = elem.allocate("FanMod", "HALO") -- Halogens
+local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
+local chlw = elem.allocate("FanMod", "CHLW") -- Chlorinated water
+local chlw = elem.allocate("FanMod", "FLOR") -- Fluorite
+local chlw = elem.allocate("FanMod", "BFLR") -- Broken fluorite
+
 -- Utilities
 
 local mouseButtonType = {
@@ -1790,10 +1797,126 @@ end)
 sim.can_move(mmry, mmry, 1)
 -- sim.can_move(mmry, lava, 0)
 
+-- -1 means special interaction
+local halogenReactions = {
+	[elem.DEFAULT_PT_RBDM] = elem.DEFAULT_PT_SALT,
+	[elem.DEFAULT_PT_LRBD] = elem.DEFAULT_PT_SALT,
+	[elem.DEFAULT_PT_LITH] = elem.DEFAULT_PT_SALT,
+	[elem.DEFAULT_PT_WATR] = chlw,
+	[elem.DEFAULT_PT_DSTW] = chlw,
+	[elem.DEFAULT_PT_SPRK] = -1,
+	[elem.DEFAULT_PT_H2] = elem.DEFAULT_PT_CAUS, -- hydrochloric acid
+	[elem.DEFAULT_PT_PTNM] = elem.DEFAULT_PT_ACID, -- chloroplatinic acid
+	[elem.DEFAULT_PT_IRON] = -1,
+	[elem.DEFAULT_PT_CO2] = elem.DEFAULT_PT_RFRG, -- chlorofluorocarbon
+	[elem.DEFAULT_PT_COAL] = -1,
+	[elem.DEFAULT_PT_BCOL] = -1,
+	[elem.DEFAULT_PT_PLNT] = elem.DEFAULT_PT_DUST, -- fluoride is toxic to plants
+	[elem.DEFAULT_PT_WOOD] = elem.DEFAULT_PT_GOO,
+	[elem.DEFAULT_PT_GOO] = -1,
+	[elem.DEFAULT_PT_YEST] = elem.DEFAULT_PT_DYST,
+	[elem.DEFAULT_PT_DYST] = elem.DEFAULT_PT_DUST,
+	[grph] = elem.DEFAULT_PT_COAL,
+	[bgph] = elem.DEFAULT_PT_BCOL,
+}
 
+local dontProduceHeat = {
+	[elem.DEFAULT_PT_SPRK] = true,
+	[elem.DEFAULT_PT_WATR] = true,
+	[elem.DEFAULT_PT_DSTW] = true,
+}
 
--- Halogen
--- FEC06F
+local halogenInteractions = {
+	[elem.DEFAULT_PT_SPRK] = function(a, b)
+		if sim.partProperty(b, "ctype") == elem.DEFAULT_PT_TUNG then
+			sim.partProperty(a, "life", 60)
+		end
+	end,
+	[elem.DEFAULT_PT_IRON] = function(a, b)
+		sim.partChangeType(b, elem.DEFAULT_PT_BMTL)
+		sim.partProperty(b, "tmp", 1)
+	end,
+	[elem.DEFAULT_PT_COAL] = function(a, b)
+		sim.partProperty(b, "life", sim.partProperty(b, "life") - 1)
+	end,
+	[elem.DEFAULT_PT_BCOL] = function(a, b)
+		sim.partProperty(b, "life", sim.partProperty(b, "life") - 1)
+	end,
+	[elem.DEFAULT_PT_GOO] = function(a, b)
+		if sim.partProperty(b, "life") == 0 then
+			sim.partProperty(b, "life", 40)
+		end
+	end
+}
+
+-- Takes characteristics from both fluorine and chlorine
+-- life: Glowing effect, activated by sparking with TUNG
+elem.element(halo, elem.element(elem.DEFAULT_PT_HYGN))
+elem.property(halo, "Name", "HALO")
+elem.property(halo, "Description", "Halogens. Reacts with alkali metals to produce SALT, kills STKM, chlorinates water, and damages most elements it touches.")
+elem.property(halo, "Colour", 0xFEC06F)
+elem.property(halo, "MenuSection", elem.SC_GASES)
+elem.property(halo, "Properties", elem.TYPE_GAS + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
+elem.property(halo, "HighPressure", 10)
+elem.property(halo, "HighPressureTransition", lhal)
+elem.property(halo, "HotAir", 0.0006)
+elem.property(halo, "Update", function(i, x, y, s, n)
+
+	local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+	if randomNeighbor ~= nil then
+		local type = sim.partProperty(randomNeighbor, "type")
+		local react = halogenReactions[type]
+		if react ~= nil then
+			if not dontProduceHeat[type] then
+				sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 100)
+			end
+			if react == -1 then
+				halogenInteractions[type](i, randomNeighbor)
+			else
+				sim.partChangeType(randomNeighbor, react)
+				local cx, cy = sim.partPosition(randomNeighbor)
+				local temp = sim.partProperty(randomNeighbor, "temp")
+				cx = round(cx)
+				cy = round(cy)
+				sim.partKill(randomNeighbor)
+				local new = sim.partCreate(-1, cx, cy, react)
+				if new ~= -1 then
+					if not dontProduceHeat[type] then
+						sim.partProperty(new, "temp", temp + 50)
+					end
+					if math.random(1, 5) == 1 then
+						sim.partKill(i)
+					end
+				end
+			end
+		elseif elem.property(type, "Flammable") > 0 then
+			local rx = x + math.random(-1, 1)
+			local ry = y + math.random(-1, 1)
+			sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_FIRE)
+		end
+	end
+end)
+elem.property(halo, "Graphics", function (i, r, g, b)
+
+	local bright = sim.partProperty(i, "life")
+	local colr = r + bright
+	local colg = g + bright
+	local colb = b + bright
+
+	local firea = 120 + bright
+	
+	local pixel_mode = ren.FIRE_BLEND
+
+	if bright > 0 then
+		pixel_mode = ren.FIRE_BLEND + ren.PMODE_FLARE + ren.FIRE_ADD
+	end
+
+	local firer = r * (0.6 + bright / 60)
+	local fireg = g * (0.6 + bright / 60)
+	local fireb = b * (0.6 + bright / 60)
+
+	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
+end)
 
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
