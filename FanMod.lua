@@ -22,6 +22,7 @@ local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
 
 local halo = elem.allocate("FanMod", "HALO") -- Halogens
 local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
+local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
 local chlw = elem.allocate("FanMod", "CHLW") -- Chlorinated water
 local chlw = elem.allocate("FanMod", "FLOR") -- Fluorite
 local chlw = elem.allocate("FanMod", "BFLR") -- Broken fluorite
@@ -96,7 +97,7 @@ local shiftTriangleID = -1
 
 -- local mouseDown = false
 event.register(event.mousedown, function(x, y, button)
-	if mouseButtonType[button]() == "FANMOD_PT_FFLD" and not zoomLensFree and not copyInterfaceActive then
+	if mouseButtonType[button] ~= nil and mouseButtonType[button]() == "FANMOD_PT_FFLD" and not zoomLensFree and not copyInterfaceActive then
 		-- print("Gettin Printed")
 		-- mouseDown = true
 		local gx, gy = sim.adjustCoords(x, y)
@@ -205,8 +206,6 @@ elem.property(smdb, "Update", function(i, x, y, s, n)
 		sim.partKill(i)
 		for j=0,30 do
 			local rad = sim.partCreate(-3, x, y, srad)
-			sim.partProperty(rad, "vx", (math.random() - 0.5) * 10)
-			sim.partProperty(rad, "vy", (math.random() - 0.5) * 10)
 		end
 	end
 	
@@ -217,7 +216,8 @@ local useMapCoords = false -- Future-proofing in case simulation.createWallBox i
 
 function spawnSradJunk(x, y)
 	-- print(x, y)
-	sim.partKill(x, y)
+	local old = sim.pmap(x, y)
+	sim.partKill(old)
 
 	local r1 = math.random()
 
@@ -259,16 +259,23 @@ for i=0,2^sim.PMAPBITS-1 do
 	sim.can_move(srad, i, 2)
 end
 
+elements.property(srad, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "vx", (math.random() - 0.5) * 10)
+	sim.partProperty(i, "vy", (math.random() - 0.5) * 10)
+end)
+
 elem.property(srad, "Update", function(i, x, y, s, n)
 
 	local cx, cy = x + math.random(5) - 3, y + math.random(5) - 3
 
-	local index = sim.partID(cx, cy)
+	local index = sim.pmap(cx, cy)
 
-	
-	local type = tpt.get_property('type', cx, cy)
-	if type ~= 0 and type ~= srad and type ~= smdb then
-		spawnSradJunk(cx, cy)
+	-- local type = tpt.get_property('type', cx, cy)
+	if index ~= nil then
+		local type = sim.partProperty(index, "type")
+		if  type ~= srad and type ~= smdb then
+			spawnSradJunk(cx, cy)
+		end
 	end
 
 	-- Kill walls
@@ -285,9 +292,7 @@ elem.property(srad, "Update", function(i, x, y, s, n)
 				spawnSradJunk(wx * 4 + cx, wy * 4 + cy)
 			end
 		end
-
 	end
-
 end)
 
 elements.property(srad, "Graphics", function(i, r, g, b)
@@ -307,7 +312,7 @@ elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 		for cy = -1, 1 do
 			-- local part = sim.partID(x + cx, y + cy)
 			if tpt.get_property("type", x + cx, y + cy) == srad then
-				tpt.set_property("ctype", smdb, i)
+				tpt.set_property("ctype", srad, i)
 				-- sim.partKill(i)
 				-- spawnSradJunk(x, y)
 			end
@@ -778,13 +783,31 @@ local shieldActionFunctions = {
 		table.insert(highlighted, {px, py})
 		return true
 	end,
+	[0x00B] = function(d, x, y) -- Paint with deco color
+		local color = sim.partProperty(sim.pmap(x, y), "dcolour")
+		sim.partProperty(d, "dcolour", color)
+		return true
+	end,
+	[0x00C] = function(d, x, y) -- Delete (no embr)
+		-- Doesn't look as cool but avoids some of the problems the embr causes in some cases
+		sim.partKill(d)
+		return true
+	end,
 }
 
 local ffldIgnore = {
 	[elem.DEFAULT_PT_BRAY] = true,
-	[elem.DEFAULT_PT_EMBR] = true,
+	-- [elem.DEFAULT_PT_EMBR] = true,
 	[ffld] = true,
 }
+
+function shouldIgnore(type, fieldCtype, mode)
+	if mode == 0x1 and type == elem.DEFAULT_PT_EMBR then
+		return false
+	end
+
+	return ffldIgnore[type] and type ~= fieldCtype
+end
 
 function isInsideFieldShape(size, shape, dx, dy)
 	return shieldFunctions[shape](size, dx, dy)
@@ -889,7 +912,7 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 
 		for k,d in pairs(nearby) do
 			local px, py = sim.partPosition(d)
-			if isInsideFieldShape(range, shape, px - x, py - y) and ffldIgnore[sim.partProperty(d, "type")] ~= true then
+			if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype) then
 				shieldActionFunctions[action](d, x, y)
 				any = true
 			end
@@ -1797,7 +1820,7 @@ end)
 sim.can_move(mmry, mmry, 1)
 -- sim.can_move(mmry, lava, 0)
 
--- -1 means special interaction
+-- -# means special interaction
 local halogenReactions = {
 	[elem.DEFAULT_PT_RBDM] = elem.DEFAULT_PT_SALT,
 	[elem.DEFAULT_PT_LRBD] = elem.DEFAULT_PT_SALT,
@@ -1807,17 +1830,22 @@ local halogenReactions = {
 	[elem.DEFAULT_PT_SPRK] = -1,
 	[elem.DEFAULT_PT_H2] = elem.DEFAULT_PT_CAUS, -- hydrochloric acid
 	[elem.DEFAULT_PT_PTNM] = elem.DEFAULT_PT_ACID, -- chloroplatinic acid
-	[elem.DEFAULT_PT_IRON] = -1,
+	[elem.DEFAULT_PT_IRON] = -2,
 	[elem.DEFAULT_PT_CO2] = elem.DEFAULT_PT_RFRG, -- chlorofluorocarbon
-	[elem.DEFAULT_PT_COAL] = -1,
-	[elem.DEFAULT_PT_BCOL] = -1,
+	[elem.DEFAULT_PT_SMKE] = elem.DEFAULT_PT_FIRE,
+	[elem.DEFAULT_PT_COAL] = -3,
+	[elem.DEFAULT_PT_BCOL] = -3,
 	[elem.DEFAULT_PT_PLNT] = elem.DEFAULT_PT_DUST, -- fluoride is toxic to plants
 	[elem.DEFAULT_PT_WOOD] = elem.DEFAULT_PT_GOO,
-	[elem.DEFAULT_PT_GOO] = -1,
+	[elem.DEFAULT_PT_GOO] = -4,
 	[elem.DEFAULT_PT_YEST] = elem.DEFAULT_PT_DYST,
 	[elem.DEFAULT_PT_DYST] = elem.DEFAULT_PT_DUST,
 	[grph] = elem.DEFAULT_PT_COAL,
 	[bgph] = elem.DEFAULT_PT_BCOL,
+	[elem.DEFAULT_PT_FUSE] = -5,
+	[elem.DEFAULT_PT_FSEP] = -5,
+	[elem.DEFAULT_PT_THDR] = -6,
+	[elem.DEFAULT_PT_LIGH] = -6,
 }
 
 local dontProduceHeat = {
@@ -1826,31 +1854,59 @@ local dontProduceHeat = {
 	[elem.DEFAULT_PT_DSTW] = true,
 }
 
+local noFire = {
+	[elem.DEFAULT_PT_TUNG] = true,
+	[chlw] = true,
+	[lhal] = true,
+	[halo] = true,
+	[fhal] = true,
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_GLAS] = true,
+	[elem.DEFAULT_PT_TTAN] = true,
+	[elem.DEFAULT_PT_QRTZ] = true,
+}
+
+-- Only a small subset of elements can survive charged HALO so that making weapons isn't *too* difficult
+local noPlasma = {
+	[lhal] = true,
+	[halo] = true,
+	[fhal] = true,
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_PLSM] = true,
+	[elem.DEFAULT_PT_FRME] = true,
+	[elem.DEFAULT_PT_CLNE] = true,
+	[elem.DEFAULT_PT_TESC] = true,
+}
+
 local halogenInteractions = {
-	[elem.DEFAULT_PT_SPRK] = function(a, b)
+	[-1] = function(a, b)
 		if sim.partProperty(b, "ctype") == elem.DEFAULT_PT_TUNG then
 			sim.partProperty(a, "life", 60)
 		end
 	end,
-	[elem.DEFAULT_PT_IRON] = function(a, b)
+	[-2] = function(a, b)
 		sim.partChangeType(b, elem.DEFAULT_PT_BMTL)
 		sim.partProperty(b, "tmp", 1)
 	end,
-	[elem.DEFAULT_PT_COAL] = function(a, b)
+	[-3] = function(a, b)
 		sim.partProperty(b, "life", sim.partProperty(b, "life") - 1)
 	end,
-	[elem.DEFAULT_PT_BCOL] = function(a, b)
-		sim.partProperty(b, "life", sim.partProperty(b, "life") - 1)
-	end,
-	[elem.DEFAULT_PT_GOO] = function(a, b)
+	[-4] = function(a, b)
 		if sim.partProperty(b, "life") == 0 then
 			sim.partProperty(b, "life", 40)
 		end
-	end
+	end,
+	[-5] = function(a, b)
+		sim.partProperty(b, "life", sim.partProperty(b, "life") - 11)
+	end,
+	[-6] = function(a, b)
+		sim.partProperty(a, "tmp", 240)
+	end,
 }
 
 -- Takes characteristics from both fluorine and chlorine
 -- life: Glowing effect, activated by sparking with TUNG
+-- tmp: Whether "ionized" by lightning/thunder. Causes it to turn everything into PLSM
 elem.element(halo, elem.element(elem.DEFAULT_PT_HYGN))
 elem.property(halo, "Name", "HALO")
 elem.property(halo, "Description", "Halogens. Reacts with alkali metals to produce SALT, kills STKM, chlorinates water, and damages most elements it touches.")
@@ -1859,46 +1915,63 @@ elem.property(halo, "MenuSection", elem.SC_GASES)
 elem.property(halo, "Properties", elem.TYPE_GAS + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
 elem.property(halo, "HighPressure", 10)
 elem.property(halo, "HighPressureTransition", lhal)
+elem.property(halo, "LowTemperature", 112.57)
+elem.property(halo, "LowTemperatureTransition", fhal)
 elem.property(halo, "HotAir", 0.0006)
 elem.property(halo, "Update", function(i, x, y, s, n)
 
-	local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
-	if randomNeighbor ~= nil then
-		local type = sim.partProperty(randomNeighbor, "type")
-		local react = halogenReactions[type]
-		if react ~= nil then
-			if not dontProduceHeat[type] then
-				sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 100)
-			end
-			if react == -1 then
-				halogenInteractions[type](i, randomNeighbor)
-			else
-				sim.partChangeType(randomNeighbor, react)
-				local cx, cy = sim.partPosition(randomNeighbor)
-				local temp = sim.partProperty(randomNeighbor, "temp")
-				cx = round(cx)
-				cy = round(cy)
-				sim.partKill(randomNeighbor)
-				local new = sim.partCreate(-1, cx, cy, react)
-				if new ~= -1 then
-					if not dontProduceHeat[type] then
-						sim.partProperty(new, "temp", temp + 50)
-					end
-					if math.random(1, 5) == 1 then
-						sim.partKill(i)
+	local tmp = sim.partProperty(i, "tmp")
+	if tmp == 0 then
+		local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+		if randomNeighbor ~= nil then
+			local type = sim.partProperty(randomNeighbor, "type")
+			local react = halogenReactions[type]
+			if react ~= nil then
+				if not dontProduceHeat[type] then
+					sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 100)
+				end
+				if react < 0 then
+					halogenInteractions[react](i, randomNeighbor)
+				else
+					local cx, cy = sim.partPosition(randomNeighbor)
+					local temp = sim.partProperty(randomNeighbor, "temp")
+					cx = round(cx)
+					cy = round(cy)
+					sim.partKill(randomNeighbor)
+					local new = sim.partCreate(-1, cx, cy, react)
+					if new ~= -1 then
+						if not dontProduceHeat[type] then
+							sim.partProperty(new, "temp", temp + 50)
+						end
+						if math.random(1, 5) == 1 then
+							sim.partKill(i)
+						end
 					end
 				end
+			elseif not noFire[type] and (elem.property(type, "Flammable") > 0 or bit.band(elem.property(type, "Properties"), elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID) ~= 0) then
+				local rx = x + math.random(-1, 1)
+				local ry = y + math.random(-1, 1)
+				sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_FIRE)
 			end
-		elseif elem.property(type, "Flammable") > 0 then
-			local rx = x + math.random(-1, 1)
-			local ry = y + math.random(-1, 1)
-			sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_FIRE)
 		end
+	else
+		local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+		if randomNeighbor ~= nil then
+			local type = sim.partProperty(randomNeighbor, "type")
+			if not noPlasma[type] then
+				sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_PLSM)
+				sim.partProperty(randomNeighbor, "temp", 10000)
+			end
+		end
+		sim.pressure(x / sim.CELL, y / sim.CELL, sim.pressure(x / sim.CELL, y / sim.CELL) - 0.02)
+		sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") - 1)
 	end
+
+	
 end)
 elem.property(halo, "Graphics", function (i, r, g, b)
 
-	local bright = sim.partProperty(i, "life")
+	local bright = sim.partProperty(i, "life") + sim.partProperty(i, "tmp")
 	local colr = r + bright
 	local colg = g + bright
 	local colb = b + bright
@@ -1917,6 +1990,75 @@ elem.property(halo, "Graphics", function (i, r, g, b)
 
 	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
 end)
+
+elem.element(lhal, elem.element(elem.DEFAULT_PT_ACID))
+elem.property(lhal, "Name", "LHAL")
+elem.property(lhal, "Description", "Liquid halogens.")
+elem.property(lhal, "Colour", 0xE2FC62)
+elem.property(lhal, "Flammable", 0)
+elem.property(lhal, "MenuSection", -1)
+elem.property(lhal, "Properties", elem.TYPE_LIQUID + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
+elem.property(lhal, "LowPressure", 10)
+elem.property(lhal, "LowPressureTransition", halo)
+elem.property(lhal, "LowTemperature", 112.57)
+elem.property(lhal, "LowTemperatureTransition", fhal)
+elem.property(lhal, "HotAir", -0.0004)
+
+elem.element(fhal, elem.element(elem.DEFAULT_PT_NICE))
+elem.property(fhal, "Name", "FHAL")
+elem.property(fhal, "Description", "Frozen halogens.")
+elem.property(fhal, "Colour", 0xF4F8A4)
+elem.property(fhal, "MenuSection", -1)
+elem.property(fhal, "Temperature", 102.57)
+elem.property(fhal, "Properties", elem.TYPE_SOLID + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
+elem.property(fhal, "HighPressure", 0)
+elem.property(fhal, "HighPressureTransition", -1)
+elem.property(fhal, "HighTemperature", 112.57)
+elem.property(fhal, "HighTemperatureTransition", halo)
+elem.property(fhal, "HotAir", -0.0004)
+
+local chlwDissolve = {
+	[elem.DEFAULT_PT_ROCK] = true,
+	[elem.DEFAULT_PT_BRCK] = true,
+	[elem.DEFAULT_PT_STNE] = true,
+	[elem.DEFAULT_PT_CNCT] = true,
+}
+
+local chlwSpread = {
+	[elem.DEFAULT_PT_WATR] = true,
+	[elem.DEFAULT_PT_DSTW] = true,
+	[elem.DEFAULT_PT_SLTW] = true,
+	[elem.DEFAULT_PT_FRZW] = true,
+}
+
+elem.element(chlw, elem.element(elem.DEFAULT_PT_DSTW))
+elem.property(chlw, "Name", "CHLW")
+elem.property(chlw, "Description", "Chlorinated water. Kills PLNT and slowly dissolves rocky materials. Not conductive.")
+elem.property(chlw, "Colour", 0x0851E5)
+elem.property(chlw, "Weight", 31)
+elem.property(chlw, "Properties", elem.TYPE_LIQUID)
+elem.property(chlw, "Update", function(i, x, y, s, n)
+
+	local r = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+	if r ~= nil then
+		local type = sim.partProperty(r, "type")
+		if math.random(200) == 1 and chlwDissolve[type] then
+			sim.partKill(r)
+			if math.random(10) == 1 then
+				sim.partKill(i)
+			end
+		end
+
+		if math.random(250) == 1 and chlwSpread[type] then
+			sim.partChangeType(r, chlw)
+		end
+
+		if type == elem.DEFAULT_PT_PLNT then
+			sim.partKill(r)
+		end
+	end
+end)
+
 
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
