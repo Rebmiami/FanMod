@@ -590,6 +590,15 @@ local shieldPatternFunctions = {
 	end,
 }
 
+-- Do not display an "invalid type" warning if any of these modes are selected
+local ctypeSafePatternFunctions = {
+	[0x600] = true,
+	[0xA00] = true,
+	[0xB00] = true,
+	[0xC00] = true,
+	[0xD00] = true,
+}
+
 local shieldFunctions = {
 	[0x000] = function(size, dx, dy) -- None
 		return false 
@@ -840,6 +849,16 @@ elements.property(ffld, "Create", function(i, x, y, t, v)
 	sim.partProperty(i, "pavg0", 0)
 end)
 
+-- Does not account for the fact that elements may be deallocated
+-- But who the hell does that
+-- (Trust no one)
+local definitelySafeElementIds = {}
+
+-- (TRUST NO ONE)
+for i=0,2^sim.PMAPBITS-1 do
+	table.insert(definitelySafeElementIds, i, false)
+end
+
 elem.property(ffld, "Update", function(i, x, y, s, n)
 
 	if updateHighlighted then
@@ -906,26 +925,41 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 			action = oldModeFormatMap[bit.band(tmp, 0x00000111)]
 		end
 
-		local nearby = shieldPatternFunctions[pattern](x, y, range, ctype)
-
-		local any = false
-
-		for k,d in pairs(nearby) do
-			local px, py = sim.partPosition(d)
-			if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype) then
-				shieldActionFunctions[action](d, x, y)
-				any = true
+		if not ctypeSafePatternFunctions[pattern] and not definitelySafeElementIds[ctype] then
+			if pcall(elements.property, ctype, "Name") then
+				definitelySafeElementIds[ctype] = true
+			else
+				print("Warning: " .. ctype .. " is not a valid element ID.")
+				sim.partProperty(i, "ctype", 0)
+				return
 			end
 		end
 
-		if sim.partProperty(i, "pavg0") == 0 and any then
-			sim.partProperty(i, "pavg0", 1)
-			sim.partProperty(i, "life", 20)
-		end
+		if shieldPatternFunctions[pattern] and shieldActionFunctions[action] and shieldFunctions[shape] then
+			local nearby = shieldPatternFunctions[pattern](x, y, range, ctype)
 
-		if sim.partProperty(i, "pavg0") == 1 and not any then
-			sim.partProperty(i, "pavg0", 0)
-			sim.partProperty(i, "life", 20)
+			local any = false
+
+			for k,d in pairs(nearby) do
+				local px, py = sim.partPosition(d)
+				if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype) then
+					shieldActionFunctions[action](d, x, y)
+					any = true
+				end
+			end
+
+			if sim.partProperty(i, "pavg0") == 0 and any then
+				sim.partProperty(i, "pavg0", 1)
+				sim.partProperty(i, "life", 20)
+			end
+
+			if sim.partProperty(i, "pavg0") == 1 and not any then
+				sim.partProperty(i, "pavg0", 0)
+				sim.partProperty(i, "life", 20)
+			end
+		else
+			print("Warning: " .. bit.tohex(tmp) .. " is not a valid forcefield mode.")
+			sim.partProperty(i, "tmp", 0)
 		end
 	end
 
