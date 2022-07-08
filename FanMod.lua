@@ -214,10 +214,12 @@ end)
 
 local useMapCoords = false -- Future-proofing in case simulation.createWallBox is changed to use map instead of part coordinates
 
-function spawnSradJunk(x, y)
+function spawnSradJunk(x, y, isWall)
 	-- print(x, y)
-	local old = sim.pmap(x, y)
-	sim.partKill(old)
+	if not isWall then
+		local old = sim.pmap(x, y)
+		sim.partKill(old)
+	end
 
 	local r1 = math.random()
 
@@ -274,7 +276,7 @@ elem.property(srad, "Update", function(i, x, y, s, n)
 	if index ~= nil then
 		local type = sim.partProperty(index, "type")
 		if  type ~= srad and type ~= smdb then
-			spawnSradJunk(cx, cy)
+			spawnSradJunk(cx, cy, false)
 		end
 	end
 
@@ -287,9 +289,9 @@ elem.property(srad, "Update", function(i, x, y, s, n)
 		else
 			sim.createWallBox(cx, cy, cx, cy, 0)
 		end
-		for cx = 0, 3 do
-			for cy = 0, 3 do
-				spawnSradJunk(wx * 4 + cx, wy * 4 + cy)
+		for xf = 0, 3, 1 do
+			for yf = 0, 3, 1 do
+				spawnSradJunk(wx * 4 + xf, wy * 4 + yf, true)
 			end
 		end
 	end
@@ -1454,7 +1456,7 @@ elem.property(bgph, "Update", function(i, x, y, s, n)
 	local vy = sim.partProperty(i, "vy")
 	local totalVel = math.sqrt(vx ^ 2 + vy ^ 2) * 100
 
-	local vdx = sim.partProperty(i, "pavg1") / 100 - totalVel
+	local vdx = (sim.partProperty(i, "pavg1") - totalVel) / 100
 
 	sim.partProperty(i, "pavg1", totalVel)
 	-- print(vdx)
@@ -1569,6 +1571,7 @@ local waters = {
 	[elem.DEFAULT_PT_FRZW] = true,
 	[elem.DEFAULT_PT_ICEI] = true,
 	[elem.DEFAULT_PT_SNOW] = true,
+	[chlw] = true,
 }
 
 local mLavaNeutralizers = {
