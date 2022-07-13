@@ -858,7 +858,8 @@ local definitelySafeElementIds = {}
 
 -- (TRUST NO ONE)
 for i=0,2^sim.PMAPBITS-1 do
-	table.insert(definitelySafeElementIds, i, false)
+	-- table.insert(definitelySafeElementIds, i, false)
+	definitelySafeElementIds[i] = false
 end
 
 elem.property(ffld, "Update", function(i, x, y, s, n)
