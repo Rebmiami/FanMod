@@ -38,6 +38,9 @@ local chlw = elem.allocate("FanMod", "BFLR") -- Broken fluorite
 
 -- v2 Elements
 local no32 = elem.allocate("FanMod", "NO32") -- Nobili32
+local lncr = elem.allocate("FanMod", "LNCR") -- Launcher
+local shot = elem.allocate("FanMod", "SHOT") -- Bullet
+local rset = elem.allocate("FanMod", "RSET") -- Resetter
 
 -- Utilities
 
@@ -2231,13 +2234,13 @@ local simpleStateNames = {
 	"Anti-Wire (charged, left)",
 	"Anti-Wire (charged, down)",
 
-	"Buffer (no charge)",
-	"Buffer (charged next step)",
-	"Buffer (charged this step)",
-	"Buffer (charged both steps)",
-	"Buffer (bridge, horizontal)",
-	"Buffer (bridge, vertical)",
-	"Buffer (bridge, bidirectional)",
+	"Connector 00 (no charge)",
+	"Connector 01 (charged next step)",
+	"Connector 10 (charged this step)",
+	"Connector 11 (charged both steps)",
+	"Connector (horizontal charge)",
+	"Connector (vertical charge)",
+	"Connector (bidirectional charge)",
 }
 
 local nobiliBasicDrawFunctions = {
