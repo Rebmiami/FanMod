@@ -1,3 +1,6 @@
+function FanElements()
+
+
 -- Check if the current snapshot supports tmp3/tmp4
 -- Otherwise, use pavg0/1
 local tmp3 = "pavg0"
@@ -32,6 +35,9 @@ local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
 local chlw = elem.allocate("FanMod", "CHLW") -- Chlorinated water
 local chlw = elem.allocate("FanMod", "FLOR") -- Fluorite
 local chlw = elem.allocate("FanMod", "BFLR") -- Broken fluorite
+
+-- v2 Elements
+local no32 = elem.allocate("FanMod", "NO32") -- Nobili32
 
 -- Utilities
 
@@ -2105,6 +2111,728 @@ end)
 
 
 
+-- https://www.gabrielgambetta.com/computer-graphics-from-scratch/07-filled-triangles.html
+local function interpolate(i0, d0, i1, d1)
+	if i0 == i1 then
+	 	return { d0 }
+	end
+  
+	local values = {}
+	local a = (d1 - d0) / (i1 - i0)
+	local d = d0
+	for i = i0, i1 do
+		table.insert(values, d)
+	 	d = d + a
+	end
+  
+	return values;
+end
+
+local function drawTriangle(x1, y1, x2, y2, x3, y3, r, g, b, a)
+	if y2 < y1 then
+		y2, x2, y1, x1 = y1, x1, y2, x2
+	end
+	if y3 < y1 then
+		y3, x3, y1, x1 = y1, x1, y3, x3
+	end
+	if y3 < y2 then
+		y2, x2, y3, x3 = y3, x3, y2, x2
+	end
+	
+	local x01 = interpolate(y1, x1, y2, x2);
+	local x12 = interpolate(y2, x2, y3, x3);
+	local x02 = interpolate(y1, x1, y3, x3);
+
+	-- Merge the two short sides.
+	local x012 = {}
+	for i=1,#x01 - 1 do
+		table.insert(x012, x01[i])
+	end
+	for i=1,#x12 do
+		table.insert(x012, x12[i])
+	end
+
+	for y = y1, y3 do
+		graphics.drawLine(x012[y - y1 + 1], y, x02[y - y1 + 1], y, r, g, b, a)
+	end
+end
+
+local nobiliStateColorMap = 
+{
+	0x303030, -- Ground state (will die next frame)
+
+	0xFF0000, -- Sensitized S
+	0xFF7D00, -- Sensitized S0
+	0xFF9619, -- Sensitized S1
+	0xFFAF00, -- Sensitized S00
+	0xFFC84B, -- Sensitized S01
+	0xFFFF64, -- Sensitized S10
+	0xFFFA7D, -- Sensitized S11
+	0xFBFF00, -- Sensitized S000
+
+	0x5959FF, -- Ordinary transmission quiescent E (Right)
+	0x6A6AFF, -- Ordinary transmission quiescent N (Up)
+	0x7A7AFF, -- Ordinary transmission quiescent W (Left)
+	0x8B8BFF, -- Ordinary transmission quiescent S (Down)
+
+	0x1BB01B, -- Ordinary transmission excited E (Right)
+	0x24C824, -- Ordinary transmission excited N (Up)
+	0x49FF49, -- Ordinary transmission excited W (Left)
+	0x6AFF6A, -- Ordinary transmission excited S (Down)
+
+	0xEB2424, -- Special transmission quiescent E (Right)
+	0xFF3838, -- Special transmission quiescent N (Up)
+	0xFF4949, -- Special transmission quiescent W (Left)
+	0xFF5959, -- Special transmission quiescent S (Down)
+
+	0xB938FF, -- Special transmission excited E (Right)
+	0xBF49FF, -- Special transmission excited N (Up)
+	0xC559FF, -- Special transmission excited W (Left)
+	0xCB6AFF, -- Special transmission excited S (Down)
+
+	0x00FF0C, -- Confluent Quiescent 00
+	0xFF8040, -- Confluent Next-Excited 00
+	0xFFFF80, -- Confluent Excited 00
+	0x21D7D7, -- Confluent Excited Next-Excited 00
+	0x1BB0B0, -- Confluent Excited Horizontal
+	0x189C9C, -- Confluent Excited Vertical
+	0x158989, -- Confluent Excited Bidirectional
+}
+
+local simpleStateNames = {
+	"Empty",
+
+	"Sensitized S",
+	"Sensitized S0",
+	"Sensitized S1",
+	"Sensitized S00",
+	"Sensitized S01",
+	"Sensitized S10",
+	"Sensitized S11",
+	"Sensitized S000",
+
+	"Wire (uncharged, right)",
+	"Wire (uncharged, up)",
+	"Wire (uncharged, left)",
+	"Wire (uncharged, down)",
+
+	"Wire (charged, right)",
+	"Wire (charged, up)",
+	"Wire (charged, left)",
+	"Wire (charged, down)",
+
+	"Anti-Wire (uncharged, right)",
+	"Anti-Wire (uncharged, up)",
+	"Anti-Wire (uncharged, left)",
+	"Anti-Wire (uncharged, down)",
+
+	"Anti-Wire (charged, right)",
+	"Anti-Wire (charged, up)",
+	"Anti-Wire (charged, left)",
+	"Anti-Wire (charged, down)",
+
+	"Buffer (no charge)",
+	"Buffer (charged next step)",
+	"Buffer (charged this step)",
+	"Buffer (charged both steps)",
+	"Buffer (bridge, horizontal)",
+	"Buffer (bridge, vertical)",
+	"Buffer (bridge, bidirectional)",
+}
+
+local nobiliBasicDrawFunctions = {
+	diamond = function(x, y, size, r, g, b, a)
+		drawTriangle(x + size / 2, y, x + 0.5, y + size / 2, x + size, y + size / 2, r, g, b, a)
+		drawTriangle(x + size / 2, y + size, x, y + size / 2, x + size, y + size / 2, r, g, b, a)
+	end,
+	arrowUp = function(x, y, size, r, g, b, a)
+		drawTriangle(x + size / 2, y, x, y + size / 2, x + size, y + size / 2, r, g, b, a)
+		graphics.fillRect(x + size / 3 + 0.5, y + size / 2, size / 3 + 1, size / 2 + 1, r, g, b, a)
+	end,
+	arrowDown = function(x, y, size, r, g, b, a)
+		drawTriangle(x + size / 2, y + size, x, y + size / 2, x + size, y + size / 2, r, g, b, a)
+		graphics.fillRect(x + size / 3 + 0.5, y, size / 3 + 1, size / 2 + 1, r, g, b, a)
+	end,
+	arrowRight = function(x, y, size, r, g, b, a)
+		drawTriangle(x + size / 2, y, x + size / 2, y + size, x + size, y + size / 2, r, g, b, a)
+		graphics.fillRect(x, y + size / 3 + 0.5, size / 2 + 1, size / 3 + 1, r, g, b, a)
+	end,
+	arrowLeft = function(x, y, size, r, g, b, a)
+		drawTriangle(x + size / 2, y, x + size / 2, y + size, x, y + size / 2, r, g, b, a)
+		graphics.fillRect(x + size / 2, y + size / 3 + 0.5, size / 2 + 1, size / 3 + 1, r, g, b, a)
+	end,
+
+}
+
+local nobiliStateDrawFunctions = {
+	function(x, y, size, r, g, b, a)
+		-- Draw nothing for ground state
+	end, -- Ground state
+
+	function(x, y, size, r, g, b, a)
+		graphics.fillCircle(x + size / 2, y + size / 2, size / 2, size / 2, r, g, b, a)
+	end, -- Sensitized S
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y + size, x + size / 2, y + size / 2, 0, 0, 0, a)
+	end, -- Sensitized S0
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size / 2, 0, 0, 0, a)
+	end, -- Sensitized S1
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.fillRect(x, y + size / 2, size + 1, size / 2 + 1, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size, 0, 0, 0, a)
+	end, -- Sensitized S00
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.fillRect(x + size / 2, y, size / 2 + 1, size / 2 + 1, r, g, b, a)
+		graphics.fillRect(x, y + size / 2, size / 2 + 1, size / 2 + 1, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size, 0, 0, 0, a)
+	end, -- Sensitized S01
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.fillRect(x, y, size / 2 + 1, size / 2 + 1, r, g, b, a)
+		graphics.fillRect(x + size / 2, y + size / 2, size / 2 + 1, size / 2 + 1, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size, 0, 0, 0, a)
+	end, -- Sensitized S10
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.fillRect(x, y, size + 1, size / 2, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size, 0, 0, 0, a)
+	end, -- Sensitized S11
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x, y + size / 2, x + size, y + size / 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 2, y, x + size / 2, y + size, 0, 0, 0, a)
+	end, -- Sensitized S000
+
+	nobiliBasicDrawFunctions.arrowRight, -- Ordinary transmission quiescent E (Right)
+	nobiliBasicDrawFunctions.arrowUp, -- Ordinary transmission quiescent N (Up)
+	nobiliBasicDrawFunctions.arrowLeft, -- Ordinary transmission quiescent W (Left)
+	nobiliBasicDrawFunctions.arrowDown, -- Ordinary transmission quiescent S (Down)
+
+	nobiliBasicDrawFunctions.arrowRight, -- Ordinary transmission excited E (Right)
+	nobiliBasicDrawFunctions.arrowUp, -- Ordinary transmission excited N (Up)
+	nobiliBasicDrawFunctions.arrowLeft, -- Ordinary transmission excited W (Left)
+	nobiliBasicDrawFunctions.arrowDown, -- Ordinary transmission excited S (Down)
+
+	nobiliBasicDrawFunctions.arrowRight, -- Special transmission quiescent E (Right)
+	nobiliBasicDrawFunctions.arrowUp, -- Special transmission quiescent N (Up)
+	nobiliBasicDrawFunctions.arrowLeft, -- Special transmission quiescent W (Left)
+	nobiliBasicDrawFunctions.arrowDown, -- Special transmission quiescent S (Down)
+
+	nobiliBasicDrawFunctions.arrowRight, -- Special transmission excited E (Right)
+	nobiliBasicDrawFunctions.arrowUp, -- Special transmission excited N (Up)
+	nobiliBasicDrawFunctions.arrowLeft, -- Special transmission excited W (Left)
+	nobiliBasicDrawFunctions.arrowDown, -- Special transmission excited S (Down)
+
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x + size / 3, y + size / 3, size / 3, 0, 0, 0, a)
+	end, -- Confluent Quiescent 00
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x + size / 3, y + size / 3, size / 3, 0, 0, 0, a)
+	end, -- Confluent Next-Excited 01
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.fillRect(x + size / 3 + 0.5, y + size / 3 + 0.5, size / 3 + 1, size / 3 + 1, 0, 0, 0, a)
+	end, -- Confluent Excited 10
+	nobiliBasicDrawFunctions.diamond, -- Confluent Excited Next-Excited 11
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x + size / 2, y + size / 3, x + size / 2, y + size / 3 * 2, 0, 0, 0, a)
+	end, -- Confluent Excited Horizontal
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x + size / 3, y + size / 2, x + size / 3 * 2, y + size / 2, 0, 0, 0, a)
+	end, -- Confluent Excited Vertical
+	function(x, y, size, r, g, b, a)
+		nobiliBasicDrawFunctions.diamond(x, y, size, r, g, b, a)
+		graphics.drawLine(x + size / 3, y + size / 3, x + size / 3 * 2, y + size / 3 * 2, 0, 0, 0, a)
+		graphics.drawLine(x + size / 3 * 2, y + size / 3, x + size / 3, y + size / 3 * 2, 0, 0, 0, a)
+	end, -- Confluent Excited Bidirectional
+}
+
+local vonNeumannNeighbors = {
+	{1, 0}, -- Right
+	{0, -1}, -- Up
+	{-1, 0}, -- Left
+	{0, 1}, -- Down
+}
+
+local vonNeumannComplement = {
+	{-1, 0}, -- Left
+	{0, 1}, -- Down
+	{1, 0}, -- Right
+	{0, -1}, -- Up
+}
+
+local directionComplement = {
+	3,
+	4,
+	1,
+	2,
+}
+
+-- Item 1 always dicatates the type of the state.
+-- 0: Grounded
+-- 1: Sensitized
+-- 2: Transmission
+-- 3: Confluent
+local stateInfo = {
+	{0}, -- No info about Ground State for you >:)
+
+	-- For sensitized states, item 2 is next state if given no input and item 3 is next state if given an input
+	{1, 2, 3}, -- State 1
+	{1, 4, 5}, -- State 2
+	{1, 6, 7}, -- State 3
+	{1, 8, 11}, -- State 4
+	{1, 12, 17}, -- State 5
+	{1, 18, 19}, -- State 6
+	{1, 20, 25}, -- State 7
+	{1, 9, 10}, -- State 8
+
+	-- For transmission states, item 2 indicates direction (1-4 for RULD) item 3 indicates activation, item 4 indicates specialness, 
+	-- item 5 indicates excited equivalent and item 6 indicates quiescent equivalent (may self-reference)
+	{2, 1, false, false, 13, 9}, -- State 9
+	{2, 2, false, false, 14, 10}, -- State 10
+	{2, 3, false, false, 15, 11}, -- State 11
+	{2, 4, false, false, 16, 12}, -- State 12
+
+	{2, 1, true, false, 13, 9}, -- State 13
+	{2, 2, true, false, 14, 10}, -- State 14
+	{2, 3, true, false, 15, 11}, -- State 15
+	{2, 4, true, false, 16, 12}, -- State 16
+	
+	{2, 1, false, true, 21, 17}, -- State 17
+	{2, 2, false, true, 22, 18}, -- State 18
+	{2, 3, false, true, 23, 19}, -- State 19
+	{2, 4, false, true, 24, 20}, -- State 20
+	
+	{2, 1, true, true, 21, 17}, -- State 21
+	{2, 2, true, true, 22, 18}, -- State 22
+	{2, 3, true, true, 23, 19}, -- State 23
+	{2, 4, true, true, 24, 20}, -- State 24
+
+	-- For confluent states, item 2 indicates if the cell will excite adjacent transmission cells. Item 3 indicates which state it will become if it is not excited,
+	-- and item 4 indicates which state it will become if it is excited.
+	{3, false, 25, 26}, -- State 25
+	{3, false, 27, 28}, -- State 26
+	{3, true, 25, 26}, -- State 27
+	{3, true, 27, 28}, -- State 28
+
+	-- Linear confluent states. Uses same scheme as normal confluent states, but with an additional 4 boolean values 6-9 that indicate whether or not the cell will
+	-- excite transmitters do its RULD respectively. Uses 1 in item 5 to indicate special function.
+	{3, true, 25, 25, 1, true, false, true, false}, -- State 29
+	{3, true, 25, 25, 1, false, true, false, true}, -- State 30
+	{3, true, 25, 25, 1, true, true, true, true}, -- State 31
+}
+
+local confluentBridgeDirectionMap = {
+	[1] = 1,
+	[2] = 2,
+	[3] = 1,
+	[4] = 2,
+}
+
+local confluentBridgeStateMap = {
+	[0x0] = 25,
+	[0x1] = 29,
+	[0x2] = 30,
+	[0x3] = 31,
+}
+
+local nobiliBrushState = 1
+
+event.register(event.mousedown, function(x, y, button)
+	if button == 2 then
+		local ax, ay = sim.adjustCoords(x, y)
+		local mp = sim.pmap(ax, ay)
+		if mp then
+			nobiliBrushState = sim.partProperty(mp, "life")
+		end
+	end
+end)
+
+
+-- Nobili 32
+-- life: Current state
+-- tmp: Previous state (used to prevent unwanted subframe interactions)
+-- tmp2: Set to 1 if this particle should not update this frame (see above parenthetical)
+elem.element(no32, elem.element(elem.DEFAULT_PT_DMND))
+elem.property(no32, "Name", "NO32")
+elem.property(no32, "Description", "Nobili 32. Complex cellular automaton. Use CTRL+S while selected to pick states.")
+elem.property(no32, "Colour", 0x6A6AFF)
+elem.property(no32, "MenuSection", elem.SC_LIFE)
+
+elem.property(no32, "CreateAllowed", function(p, x, y, t)
+	if p == -2 then
+		local i = sim.partCreate(-1, x, y, no32) -- User palette choice
+		sim.partProperty(i, "life", nobiliBrushState)
+		return false
+	end
+	return true
+end)
+
+elem.property(no32, "CtypeDraw", function(i, t)
+	if t == elem.DEFAULT_PT_SPRK then
+		local state = sim.partProperty(i, "life")
+		local info = stateInfo[state + 1]
+		if info[1] == 2 then -- Activate transmitter cells when sparked with the brush
+			sim.partProperty(i, "life", info[5])
+		end
+	end
+end)
+
+elem.property(no32, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "life", 1) -- Is now Sensitized S
+	sim.partProperty(i, "tmp", 0) -- Used to be Ground
+end)
+
+elem.property(no32, "Update", function(i, x, y, s, n)
+	if sim.partProperty(i, "tmp2") == 1 then
+		sim.partProperty(i, "tmp2", 0)
+		return
+	end
+
+	local state = sim.partProperty(i, "life")
+	local info = stateInfo[state + 1]
+	sim.partProperty(i, "tmp", state)
+
+	local inputOrdinaryExcited = 0
+	local inputOrdinaryQuiescent = 0
+	local inputSpecialExcited = 0
+	local confluentOutputs = 0
+	local confluentDirectionSum = 0
+	local confluentDirectionSumTotal = 0
+	local oppositeAttacking = 0
+
+	local transmitterConduct = false
+	local transmitterDestroy = false
+
+	for k,l in pairs(vonNeumannNeighbors) do
+		local n = sim.pmap(x + l[1], y + l[2])
+
+		if n then
+			if info[1] == 2 then -- Am I a transmitter?
+				if sim.partProperty(n, "type") == elem.DEFAULT_PT_SPRK and sim.partProperty(n, "ctype") == elem.DEFAULT_PT_PSCN 
+				and sim.partProperty(n, "life") == 3 and k ~= info[2] then -- Am I next to SPRK(PSCN) with a life of 3 and not facing towards it?
+					transmitterConduct = true
+				elseif info[3] and sim.partProperty(n, "life") == 0 and k == info[2] then -- Am I facing towards a particle with a life of 0?
+					sim.partCreate(-1, x + l[1], y + l[2], elem.DEFAULT_PT_SPRK) -- Attempt to spark it
+				end
+			end
+
+			-- print("Brogle", n, sim.partProperty(n, "tmp2"), sim.partProperty(n, "type"))
+			if sim.partProperty(n, "tmp2") == 1 or sim.partProperty(n, "type") ~= no32 then
+				goto loopFinish
+			end
+			-- print(n) 
+			local nState
+			if n > i then
+				--print(n, k)
+				nState = sim.partProperty(n, "life")
+			else
+				--print(n, k)
+				nState = sim.partProperty(n, "tmp")
+			end
+
+			if nState ~= 0 then
+				local nInfo = stateInfo[nState + 1]
+				if nInfo[1] == 2 and nInfo[2] == directionComplement[k] then -- Is there a transmitter facing towards me?
+
+					if info[1] == 3 then -- Am I a confluent?
+						confluentDirectionSumTotal = confluentDirectionSumTotal + k
+						if info[1] == 3 and nInfo[3] then -- Am I a confluent and is the transmitter excited?
+							confluentDirectionSum = confluentDirectionSum + confluentBridgeDirectionMap[nInfo[2]]
+						end
+					end
+
+					if nInfo[2] ~= directionComplement[info[2]] and nInfo[3] then -- Am I not facing it?
+						if info[4] == nInfo[4] then
+							transmitterConduct = true
+						else
+						end
+					end
+
+					if info[4] ~= nInfo[4] and nInfo[3] then -- Is it powered and the opposite specialness as me?
+						transmitterDestroy = true
+					end
+
+					if nInfo[4] then -- Is the transmitter special?
+						if nInfo[3] then -- Is it excited?
+							inputSpecialExcited = inputSpecialExcited + 1
+						end
+					else -- Is it ordinary?
+						if nInfo[3] then -- Is it excited?
+							inputOrdinaryExcited = inputOrdinaryExcited + 1
+						else
+							inputOrdinaryQuiescent = inputOrdinaryQuiescent + 1
+						end
+					end
+				end
+
+				if info[1] == 3 and nInfo[1] == 2 and k ~= directionComplement[nInfo[2]] then -- Am I a confluent next to a transmitter that is not facing towards me?
+					confluentOutputs = confluentOutputs + 1
+					-- if nInfo[2] then
+					-- 	transmitterConduct = true
+					-- end
+				end
+
+				if info[1] == 2 and nInfo[1] == 3 and k ~= info[2] then -- Am I a transmitter next to a confluent and not facing towards it?
+					if nInfo[5] then -- Is this a bridge confluent?
+						transmitterConduct = nInfo[5 + k]
+					elseif nInfo[2] then
+						transmitterConduct = true
+					end
+				end
+
+
+				goto loopFinish
+			end
+		else
+			-- Will only end up here if there is no particle
+			if info[1] == 2 and info[3] and info[2] == k then -- Am I an excited transmitter pointing in this direction?
+				local s = sim.partCreate(-1, x + l[1], y + l[2], no32)
+				if s > i then
+					sim.partProperty(s, "tmp2", 1)
+				end
+			end
+		end
+
+		
+	
+		::loopFinish::
+	end
+
+	if info[1] == 0 then
+		if inputOrdinaryExcited > 0 or inputSpecialExcited > 0 then -- Am I recieving an input from an excited transmitter?
+			sim.partProperty(i, "life", 1) -- Return from grounded to sensitized
+		end
+	elseif info[1] == 1 then -- Am I a sensitized cell?
+		if inputOrdinaryExcited > 0 or inputSpecialExcited > 0 then -- Am I recieving an input from an excited transmitter?
+			sim.partProperty(i, "life", info[3])
+		else
+			sim.partProperty(i, "life", info[2])
+		end
+	elseif info[1] == 2 then -- Am I a transmitter cell?
+		if transmitterDestroy then
+		-- if (info[4] and inputOrdinaryExcited > 0) or (not info[4] and inputSpecialExcited > 0) then
+			sim.partProperty(i, "life", 0) -- Ground
+		elseif transmitterConduct then
+		-- elseif info[4] and inputSpecialExcited > 0 or not info[4] and inputOrdinaryExcited > 0 then
+			sim.partProperty(i, "life", info[5])
+		else
+			sim.partProperty(i, "life", info[6])
+		end
+	elseif info[1] == 3 then -- Am I a confluent cell?
+		if inputSpecialExcited > 0 then
+			sim.partProperty(i, "life", 0) -- Ground
+		elseif confluentDirectionSumTotal % 2 == 1 and inputOrdinaryExcited + inputOrdinaryQuiescent == 2 and confluentOutputs == 2 then -- Should I act like a bridge cell?
+			sim.partProperty(i, "life", confluentBridgeStateMap[confluentDirectionSum])
+		else
+			if inputOrdinaryExcited > 0 and inputOrdinaryQuiescent == 0 then -- Only activate if all inputs are excited
+				sim.partProperty(i, "life", info[4])
+			elseif confluentOutputs > 0 then -- Memory behavior
+				sim.partProperty(i, "life", info[3])
+			end
+		end
+
+	end
+
+	if sim.partProperty(i, "life") == 0 and state == 0 then -- Did I start and end this frame in ground-state?
+		sim.partKill(i) -- DIE!
+		return
+	end
+end)
+elem.property(no32, "Graphics", function (i, r, g, b)
+	local state = sim.partProperty(i, "life") + 1
+	local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state])
+	local pixel_mode = ren.PMODE_FLAT
+	return 0,pixel_mode,255,colr,colg,colb,0,0,0,0;
+end)
+
+event.register(event.tick, function()
+	-- drawTriangle(1, 1, 2, 1, 1, 2, 255, 255, 255, 255)
+	local zoomEnabled = ren.zoomEnabled()
+	if zoomEnabled then
+		local zoomX, zoomY, zoomPixels = ren.zoomScope()
+		local zWinX, zWinY, zWinPxSize, zWinSize = ren.zoomWindow()
+	
+		local drawSize = zWinPxSize
+		if drawSize % 2 == 1 then
+			drawSize = drawSize + 1 -- Prevent odd numbers making the shapes look lopsided
+		end
+		if drawSize < 8 then
+			return
+		end
+
+		for i = 0, zoomPixels - 1 do
+			for j = 0, zoomPixels - 1 do
+				local part = sim.partID(i + zoomX, j + zoomY)
+
+				if part and sim.partProperty(part, "type") == no32 then
+					local state = sim.partProperty(part, "life") + 1
+					local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state])
+					local originX = zWinX + zWinPxSize * i
+					local originY = zWinY + zWinPxSize * j
+					graphics.fillRect(originX, originY, zWinPxSize, zWinPxSize, 0, 0, 0, 255)
+					if nobiliStateDrawFunctions[state] then
+						nobiliStateDrawFunctions[state](originX, originY, drawSize - 2, colr, colg, colb)
+					else
+						drawTriangle(originX, originY, originX + drawSize - 2, originY, originX, originY + drawSize - 2, colr, colg, colb, 255)
+					end
+				end
+			end
+		end
+	end
+end)  
+
+local stateScreenShapes = {}
+
+local function createAndAddStateButton(x, y, wx, wy, state, window)
+	-- local stateButton = Button:new(x, y, 15, 15, "")
+	-- stateButton:action(
+	-- 	function()
+	-- 	interface.closeWindow(window)
+	-- end)
+	-- stateButton:visible(true)
+	-- window:addComponent(stateButton)
+	local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state + 1])
+	table.insert(stateScreenShapes, {state, wx + x, wy + y, colr, colg, colb, 255})
+end
+
+
+event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
+	if ctrl and tpt.selectedl == "FANMOD_PT_NO32" and key == 115 then -- S 
+		local stateSelectWindow = Window:new(-1, -1, 200, 200)
+
+		local titleLabel = Label:new(0, 0, 200, 16, "Nobili32 State Select")
+		stateSelectWindow:addComponent(titleLabel)
+	
+		local buttonSize = 14
+		local hBS = buttonSize / 2
+		stateScreenShapes = {}
+		
+		local wx, wy = stateSelectWindow:size()
+		local adjX, adjY = (graphics.WIDTH - wx) / 2, (graphics.HEIGHT - wy) / 2
+
+		createAndAddStateButton(100 - hBS, 30 - hBS, adjX, adjY, 1, stateSelectWindow)
+
+		createAndAddStateButton(60 - hBS, 50 - hBS, adjX, adjY, 2, stateSelectWindow)
+		createAndAddStateButton(140 - hBS, 50 - hBS, adjX, adjY, 3, stateSelectWindow)
+
+		createAndAddStateButton(40 - hBS, 70 - hBS, adjX, adjY, 4, stateSelectWindow)
+		createAndAddStateButton(80 - hBS, 70 - hBS, adjX, adjY, 5, stateSelectWindow)
+		createAndAddStateButton(120 - hBS, 70 - hBS, adjX, adjY, 6, stateSelectWindow)
+		createAndAddStateButton(160 - hBS, 70 - hBS, adjX, adjY, 7, stateSelectWindow)
+
+		createAndAddStateButton(30 - hBS, 95 - hBS, adjX, adjY, 8, stateSelectWindow)
+
+		createAndAddStateButton(20 - hBS, 120 - hBS, adjX, adjY, 9, stateSelectWindow)
+		createAndAddStateButton(40 - hBS, 120 - hBS, adjX, adjY, 10, stateSelectWindow)
+		createAndAddStateButton(60 - hBS, 120 - hBS, adjX, adjY, 11, stateSelectWindow)
+		createAndAddStateButton(80 - hBS, 120 - hBS, adjX, adjY, 12, stateSelectWindow)
+		createAndAddStateButton(100 - hBS, 120 - hBS, adjX, adjY, 17, stateSelectWindow)
+		createAndAddStateButton(120 - hBS, 120 - hBS, adjX, adjY, 18, stateSelectWindow)
+		createAndAddStateButton(140 - hBS, 120 - hBS, adjX, adjY, 19, stateSelectWindow)
+		createAndAddStateButton(160 - hBS, 120 - hBS, adjX, adjY, 20, stateSelectWindow)
+
+		createAndAddStateButton(180 - hBS, 120 - hBS, adjX, adjY, 25, stateSelectWindow)
+		createAndAddStateButton(180 - hBS, 140 - hBS, adjX, adjY, 26, stateSelectWindow)
+		createAndAddStateButton(180 - hBS, 160 - hBS, adjX, adjY, 27, stateSelectWindow)
+		createAndAddStateButton(180 - hBS, 180 - hBS, adjX, adjY, 28, stateSelectWindow)
+
+		createAndAddStateButton(20 - hBS, 140 - hBS, adjX, adjY, 13, stateSelectWindow)
+		createAndAddStateButton(40 - hBS, 140 - hBS, adjX, adjY, 14, stateSelectWindow)
+		createAndAddStateButton(60 - hBS, 140 - hBS, adjX, adjY, 15, stateSelectWindow)
+		createAndAddStateButton(80 - hBS, 140 - hBS, adjX, adjY, 16, stateSelectWindow)
+		createAndAddStateButton(100 - hBS, 140 - hBS, adjX, adjY, 21, stateSelectWindow)
+		createAndAddStateButton(120 - hBS, 140 - hBS, adjX, adjY, 22, stateSelectWindow)
+		createAndAddStateButton(140 - hBS, 140 - hBS, adjX, adjY, 23, stateSelectWindow)
+		createAndAddStateButton(160 - hBS, 140 - hBS, adjX, adjY, 24, stateSelectWindow)
+		
+		createAndAddStateButton(60 - hBS, 180 - hBS, adjX, adjY, 29, stateSelectWindow)
+		createAndAddStateButton(100 - hBS, 180 - hBS, adjX, adjY, 30, stateSelectWindow)
+		createAndAddStateButton(140 - hBS, 180 - hBS, adjX, adjY, 31, stateSelectWindow)
+		
+		stateSelectWindow:onDraw(function()
+			graphics.drawLine(100 + adjX, 15 + adjY, 100 + adjX, 30 + adjY, 0, 255, 0, 255)
+
+			graphics.drawLine(100 + adjX, 30 + adjY, 60 + adjX, 50 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(100 + adjX, 30 + adjY, 140 + adjX, 50 + adjY, 0, 255, 0, 255)
+
+			graphics.drawLine(60 + adjX, 50 + adjY, 40 + adjX, 70 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(60 + adjX, 50 + adjY, 80 + adjX, 70 + adjY, 0, 255, 0, 255)
+			graphics.drawLine(140 + adjX, 50 + adjY, 120 + adjX, 70 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(140 + adjX, 50 + adjY, 160 + adjX, 70 + adjY, 0, 255, 0, 255)
+
+			graphics.drawLine(40 + adjX, 70 + adjY, 30 + adjX, 95 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(40 + adjX, 70 + adjY, 60 + adjX, 120 + adjY, 0, 255, 0, 255)
+			graphics.drawLine(80 + adjX, 70 + adjY, 80 + adjX, 120 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(80 + adjX, 70 + adjY, 100 + adjX, 120 + adjY, 0, 255, 0, 255)
+			graphics.drawLine(120 + adjX, 70 + adjY, 120 + adjX, 120 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(120 + adjX, 70 + adjY, 140 + adjX, 120 + adjY, 0, 255, 0, 255)
+			graphics.drawLine(160 + adjX, 70 + adjY, 160 + adjX, 120 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(160 + adjX, 70 + adjY, 180 + adjX, 120 + adjY, 0, 255, 0, 255)
+
+			graphics.drawLine(30 + adjX, 95 + adjY, 20 + adjX, 120 + adjY, 0, 0, 255, 255)
+			graphics.drawLine(30 + adjX, 95 + adjY, 40 + adjX, 120 + adjY, 0, 255, 0, 255)
+
+
+
+			for i,j in pairs(stateScreenShapes) do
+				nobiliStateDrawFunctions[j[1] + 1](j[2], j[3], buttonSize, j[4], j[5], j[6], j[7])
+			end
+		end)
+	
+		stateSelectWindow:onMouseDown(function(x, y, button)
+			for i,j in pairs(stateScreenShapes) do
+				bx = j[2]
+				by = j[3]
+				local bw, bh = buttonSize, buttonSize
+				if x >= bx and y >= by and x <= bx + bw and y <= by + bh then
+					nobiliBrushState = j[1]
+					interface.closeWindow(stateSelectWindow)
+					break
+				end
+			end
+		
+		end)
+
+		stateSelectWindow:onMouseMove(function(x, y, dx, dy)
+			for i,j in pairs(stateScreenShapes) do
+				bx = j[2]
+				by = j[3]
+				local bw, bh = buttonSize, buttonSize
+				if x >= bx and y >= by and x <= bx + bw and y <= by + bh then
+					titleLabel:text(simpleStateNames[j[1] + 1])
+					break
+				end
+				titleLabel:text("Nobili32 State Select")
+			end
+		
+		end)
+
+	
+		interface.showWindow(stateSelectWindow)
+		stateSelectWindow:onTryExit(function()
+			interface.closeWindow(stateSelectWindow)
+		end)
+		return false
+	end
+end)  
+
+
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
@@ -2137,3 +2865,7 @@ elem.property(pink, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+
+
+end
+FanElements()
