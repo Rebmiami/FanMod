@@ -2835,6 +2835,333 @@ event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 	end
 end)  
 
+local basicDirectionTable = {
+	{225, 180, 135},
+	{270, 0, 90},
+	{315, 0, 45},
+} 
+
+elem.element(lncr, elem.element(elem.DEFAULT_PT_CLNE))
+elem.property(lncr, "Name", "LNCR")
+elem.property(lncr, "Description", "Launcher. Shift+click and drag on a launcher to set its power and angle.")
+elem.property(lncr, "Colour", 0x3B84DF)
+elem.property(lncr, "HeatConduct", 0)
+elem.property(lncr, "Hardness", 0)
+elem.property(lncr, "MenuSection", elem.SC_FORCE)
+elem.property(lncr, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT)
+
+elem.property(lncr, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "life", 361)
+end)
+
+elem.property(lncr, "Update", function(i, x, y, s, n)
+	for cx = -1, 1 do
+		for cy = -1, 1 do
+			local id = sim.partID(x + cx, y + cy)
+			if id ~= nil then
+				if sim.partProperty(id, "type") == elem.DEFAULT_PT_SPRK and sim.partProperty(id, "life") == 3 then
+					local ctype = sim.partProperty(i, "ctype")
+					if ctype ~= 0 then
+						local angleVar = sim.partProperty(i, "tmp")
+						local life = sim.partProperty(i, "life")
+
+						local angle
+						if life <= 360 then
+							angle = life + math.random(-angleVar, angleVar) / 2
+						else
+							angle = basicDirectionTable[-cy + 2][-cx + 2] + math.random(-angleVar, angleVar) / 2
+						end
+						local speed = (sim.partProperty(i, "temp") - 273.15) / 10
+						local fvx, fvy = math.sin(angle / 360 * math.pi * 2), math.cos(angle / 360 * math.pi * 2)
+						local launched = sim.partCreate(-1, x + fvx * 3 + 0.5, y + fvy * 3 + 0.5, ctype)
+						sim.partProperty(launched, "vx", fvx * speed)
+						sim.partProperty(launched, "vy", fvy * speed)
+					end
+				end
+			end
+		end
+	end
+end)
+
+local launcherConfigActive = false
+local launcherConfigID = -1
+
+local launcherLogIncrement = 0.05
+local launcherVisualIncrement = 0.02
+
+elem.property(lncr, "Graphics", function (i, r, g, b)
+	local x, y = sim.partPosition(i)
+	local mx, my = sim.adjustCoords(tpt.mousex, tpt.mousey)
+	if i == launcherConfigID or (x == mx and y == my and i ~= launcherConfigID) then
+		local x, y = sim.partPosition(i)
+		local mx, my = sim.adjustCoords(tpt.mousex, tpt.mousey)
+
+		local temp = math.max(sim.partProperty(i, "temp") - 273.15, 0)
+		local life = sim.partProperty(i, "life")
+		local tmp = sim.partProperty(i, "tmp") / 2
+
+		local maxRingRadius
+
+
+		local att = 0
+		local cval = temp
+		while cval > 1 and att < 20 do
+			local maxRing = cval + 273.15 >= 10000 - 1
+			local radius = math.log(cval, 1 + launcherVisualIncrement) ^ 0.3 * 8
+			if not maxRingRadius then maxRingRadius = radius end
+			graphics.drawCircle(x, y, radius, radius, 255, maxRing and 0 or 255, maxRing and 0 or 255, 100)
+			cval = (1 + launcherVisualIncrement) ^ (math.log(cval, 1 + launcherVisualIncrement) - 50)
+			att = att + 1
+		end
+		
+		if not maxRingRadius or maxRingRadius < 10 then
+			maxRingRadius = 10
+		end
+
+		maxRingRadius = maxRingRadius - 1
+
+		graphics.drawLine(x, y, x + math.sin((life + tmp) * math.pi / 180) * maxRingRadius, y + math.cos((life + tmp) * math.pi / 180) * maxRingRadius, 255, 255, 255, 50)
+		graphics.drawLine(x, y, x + math.sin((life - tmp) * math.pi / 180) * maxRingRadius, y + math.cos((life - tmp) * math.pi / 180) * maxRingRadius, 255, 255, 255, 50)
+		
+
+		graphics.drawLine(x, y, mx, my, 255, 255, 255, 150)
+
+		graphics.drawText(x + 3, y + 3, (life == 361 and "+" or math.floor(life)) .. "°", 255, 255, 255, 255)
+
+	end
+	return 0,pixel_mode,255,r,g,b,0,0,0,0;
+end)
+
+event.register(event.mousedown, function(x, y, button)
+	local underMouse = sim.pmap(sim.adjustCoords(x, y))
+	if shiftHeld and underMouse and sim.partProperty(underMouse, "type") == lncr then
+		launcherConfigActive = true
+		launcherConfigID = underMouse
+		return false
+	end
+end)
+
+event.register(event.mousemove, function(x, y, button)
+	if launcherConfigActive then
+		local px, py = sim.partPosition(launcherConfigID)
+		local mx, my = sim.adjustCoords(x, y)
+
+		local life
+
+		if mx == px and my == py then
+			life = 361
+		else
+			life = (math.atan2(mx - px, my - py) / (math.pi * 2) * 360) % 360
+		end
+
+		sim.partProperty(launcherConfigID, "life", life)
+	end
+end)
+
+event.register(event.mousewheel, function(x, y, scroll)
+	if launcherConfigActive then
+		if shiftHeld then
+			sim.partProperty(launcherConfigID, "temp", math.max((sim.partProperty(launcherConfigID, "temp") - 273.15) * (1 + scroll * launcherLogIncrement), 1) + 273.15)
+		else
+			sim.partProperty(launcherConfigID, "tmp", math.min(math.max(sim.partProperty(launcherConfigID, "tmp") + scroll, 0), 360))
+		end
+		return false
+	end
+end)
+
+event.register(event.mouseup, function(x, y, button)
+	if launcherConfigActive then
+		launcherConfigActive = false
+		launcherConfigID = -1
+	end
+end)
+
+elem.property(lncr, "CtypeDraw", function(i, t)
+	if bit.band( elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
+		sim.partProperty(i, "ctype", t)
+	end
+end)
+
+local bulletImmune = {
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_VIBR] = true,
+	[elem.DEFAULT_PT_CLNE] = true,
+	[elem.DEFAULT_PT_PCLN] = true,
+	[shot] = true,
+}
+
+-- Bullet type format:
+-- kill, temp, pressure, life, tmp, tmp2, radius, convert mode
+-- Set pressure/temp to nil to use default scaling, -1 to use element default
+local bulletDefault = {false, -1, 1, nil, nil, nil, 3}
+
+local bulletTypeInfo = {
+	[elem.DEFAULT_PT_EMBR] = {true, nil, nil, 50, 0, 0, 2},
+	[elem.DEFAULT_PT_FIRE] = {false, nil, nil, nil, nil, nil, 3},
+	[elem.DEFAULT_PT_PLSM] = {false, nil, nil, nil, nil, nil, 3},
+	[elem.DEFAULT_PT_LAVA] = {false, nil, nil, nil, nil, nil, 3},
+
+	[elem.DEFAULT_PT_THDR] = {true, nil, nil, nil, nil, nil, 1},
+	[elem.DEFAULT_PT_BOMB] = {true, nil, nil, nil, nil, nil, 1},
+	[elem.DEFAULT_PT_DEST] = {true, nil, -30, 30, nil, nil, 2},
+	[elem.DEFAULT_PT_DMG] = {true, nil, nil, nil, nil, nil, 1},
+	[elem.DEFAULT_PT_GBMB] = {true, nil, nil, 60, nil, nil, 2},
+	[elem.DEFAULT_PT_VIBR] = {true, nil, nil, 2, 0, nil, 2},
+	[elem.DEFAULT_PT_BVBR] = {true, nil, nil, 2, 0, nil, 2},
+	[elem.DEFAULT_PT_SING] = {true, nil, nil, 0, 100, nil, 2},
+	[elem.DEFAULT_PT_COAL] = {true, nil, nil, 99, nil, nil, 3},
+	[elem.DEFAULT_PT_BCOL] = {true, nil, nil, 99, nil, nil, 3},
+	[elem.DEFAULT_PT_HYGN] = {true, 10000, 256, nil, nil, nil, 10}, -- FUSION
+
+	[elem.DEFAULT_PT_FWRK] = {true, nil, nil, 2, nil, nil, 2},
+	[elem.DEFAULT_PT_FIRW] = {true, nil, nil, nil, 2, nil, 2},
+
+	[elem.DEFAULT_PT_FUSE] = {false, nil, nil, 39, nil, nil, 5},
+	[elem.DEFAULT_PT_FSEP] = {false, nil, nil, 39, nil, nil, 5},
+
+	[elem.DEFAULT_PT_DEUT] = {false, nil, nil, 300, nil, nil, 2},
+	[elem.DEFAULT_PT_MERC] = {false, nil, nil, nil, 300, nil, 2},
+	
+	[elem.DEFAULT_PT_GOLD] = {true, 295.15, nil, nil, nil, nil, 4, true},
+	[elem.DEFAULT_PT_AMTR] = {true, nil, nil, nil, nil, nil, 4, true},
+	
+	[elem.DEFAULT_PT_SPNG] = {false, 295.15, nil, 100, nil, nil, 4},
+
+	[elem.DEFAULT_PT_URAN] = {true, 10000, nil, nil, nil, nil, 2},
+
+	[elem.DEFAULT_PT_BHOL] = {true, nil, -1000, nil, nil, nil, 0},
+	[elem.DEFAULT_PT_WHOL] = {true, nil, 1000, nil, nil, nil, 0},
+	
+	[elem.DEFAULT_PT_PHOT] = {false, nil, nil, nil, nil, nil, 6},
+	[elem.DEFAULT_PT_PROT] = {false, nil, nil, nil, nil, nil, 6},
+	[elem.DEFAULT_PT_ELEC] = {false, nil, nil, nil, nil, nil, 6},
+	[elem.DEFAULT_PT_GRVT] = {false, nil, nil, nil, nil, nil, 6},
+	[elem.DEFAULT_PT_NEUT] = {false, nil, nil, nil, nil, nil, 6},
+
+	[elem.DEFAULT_PT_VOID] = {true, nil, nil, nil, nil, nil, 15},
+	[elem.DEFAULT_PT_DMND] = {true, nil, nil, nil, nil, nil, 3},
+}
+
+local bulletTypeFunctions = {
+	[elem.DEFAULT_PT_DRAY] = function(i)
+		if math.random() > 0.5 then -- DRAY bomb
+			sim.partProperty(i, "type", elem.DEFAULT_PT_SPRK)
+			sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
+			sim.partProperty(i, "life", 4)
+		end
+	end,
+	[elem.DEFAULT_PT_DMND] = function(i)
+		sim.partKill(i)
+	end,
+	[elem.DEFAULT_PT_VOID] = function(i)
+		sim.partKill(i)
+	end,
+}
+
+elem.element(shot, elem.element(elem.DEFAULT_PT_CNCT))
+elem.property(shot, "Name", "AMMO")
+elem.property(shot, "Description", "Bullet. Damages materials, but must be accelerated to high speeds first.")
+elem.property(shot, "Colour", 0xFDC43F)
+elem.property(shot, "Collision", 0)
+elem.property(shot, "Loss", 0.99)
+elem.property(shot, "Gravity", 0.7)
+elem.property(shot, "HighTemperatureTransition", -1)
+elem.property(shot, "MenuSection", elem.SC_EXPLOSIVE)
+elem.property(shot, "Update", function(i, x, y, s, n)
+	if sim.partProperty(i, "life") == -1 then
+		sim.partKill(i)
+		return
+	end
+
+	local vx = sim.partProperty(i, "vx")
+	local vy = sim.partProperty(i, "vy")
+	local pvx = sim.partProperty(i, "tmp") / 100
+	local pvy = sim.partProperty(i, "tmp2") / 100
+	local v = math.sqrt(vx ^ 2 + vy ^ 2)
+	local pv = math.sqrt(pvx ^ 2 + pvy ^ 2)
+
+	sim.partProperty(i, "life", v)
+	sim.partProperty(i, "tmp", vx * 100)
+	sim.partProperty(i, "tmp2", vy * 100)
+	sim.partProperty(i, "tmp3", x)
+	sim.partProperty(i, "tmp4", y)
+
+	if pv - v > 10 then -- Has my velocity suddenly decreased drastically?
+		local ctype = sim.partProperty(i, "ctype")
+		if ctype == 0 then ctype = elem.DEFAULT_PT_EMBR end
+
+		local bulletProps = bulletTypeInfo[ctype] or bulletDefault
+
+		local radius = bulletProps[7]
+
+		for cx = -radius, radius do
+			for cy = -radius, radius do
+
+				if cx ^ 2 + cy ^ 2 < (radius + 0.5) ^ 2 and x + cx >= 0 and y + cy >= 0 and x + cx < sim.XRES and y + cy < sim.YRES then
+					local partsKilled = false
+					if bulletProps[1] then
+						local id = sim.pmap(x + cx, y + cy)
+						if not (cx == 0 and cy == 0) and id ~= nil then
+							if not bulletImmune[sim.partProperty(id, "type")] then
+								sim.partKill(id)
+								partsKilled = true
+							end
+						end
+					end
+					if (not bulletProps[8]) or partsKilled then
+						local fragment = sim.partCreate(-1, x + cx, y + cy, ctype)
+						
+						if bulletTypeFunctions[ctype] then bulletTypeFunctions[ctype](fragment) end
+
+						-- if fragment then
+							if bulletProps[2] then
+								if bulletProps[2] ~= -1 then
+									sim.partProperty(fragment, "temp", bulletProps[2])
+								end
+							else
+								sim.partProperty(fragment, "temp", pv * 200)
+							end
+						
+							if bulletProps[4] then sim.partProperty(fragment, "life", bulletProps[4]) end
+							if bulletProps[5] then sim.partProperty(fragment, "tmp", bulletProps[5]) end
+							if bulletProps[6] then sim.partProperty(fragment, "tmp2", bulletProps[6]) end
+							sim.partProperty(fragment, "vx", cx + (math.random() - 0.5) * 2)
+							sim.partProperty(fragment, "vy", cy + (math.random() - 0.5) * 2)
+						-- end
+					end
+				end
+			end
+		end
+
+		sim.pressure(x / 4, y / 4, sim.pressure(x / 4, y / 4) + (bulletProps[3] or pv))
+
+		if ctype ~= elem.DEFAULT_PT_DMND then
+			sim.partProperty(i, "life", -1)
+		end
+	end
+end)
+
+elem.property(shot, "Graphics", function (i, r, g, b)
+	local v = sim.partProperty(i, "life")
+	local px = sim.partProperty(i, "tmp3")
+	local py = sim.partProperty(i, "tmp4")
+	local x, y = sim.partPosition(i)
+
+	if v > 10 then
+		graphics.drawLine(x, y, px, py, 255, 255, 0, (v - 10) * 25)
+	end
+	local pixel_mode = ren.PMODE_FLAT
+	return 0,pixel_mode,255,r,g,b,0,0,0,0;
+end)
+
+elem.property(shot, "CtypeDraw", function(i, t)
+	if t ~= shot and bit.band(elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
+		sim.partProperty(i, "ctype", t)
+	end
+end)
+
+sim.can_move(shot, elem.DEFAULT_PT_EMBR, 2)
+
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
