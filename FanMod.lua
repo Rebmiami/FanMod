@@ -960,6 +960,7 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 
 			for k,d in pairs(nearby) do
 				local px, py = sim.partPosition(d)
+				if not px or not py then print(k, d, px, py) end
 				if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype) then
 					shieldActionFunctions[action](d, x, y)
 					any = true
@@ -2509,6 +2510,13 @@ elem.property(no32, "Update", function(i, x, y, s, n)
 
 	local state = sim.partProperty(i, "life")
 	local info = stateInfo[state + 1]
+
+	if not info then 
+		sim.partProperty(i, "life", 0) -- Become grounded if in an invalid state
+		state = sim.partProperty(i, "life")
+		info = stateInfo[state + 1]
+	end
+
 	sim.partProperty(i, "tmp", state)
 
 	local inputOrdinaryExcited = 0
@@ -2549,7 +2557,7 @@ elem.property(no32, "Update", function(i, x, y, s, n)
 				nState = sim.partProperty(n, "tmp")
 			end
 
-			if nState ~= 0 then
+			if nState ~= 0 and stateInfo[nState + 1] then
 				local nInfo = stateInfo[nState + 1]
 				if nInfo[1] == 2 and nInfo[2] == directionComplement[k] then -- Is there a transmitter facing towards me?
 
@@ -2923,8 +2931,8 @@ elem.property(lncr, "Graphics", function (i, r, g, b)
 		graphics.drawLine(x, y, x + math.sin((life + tmp) * math.pi / 180) * maxRingRadius, y + math.cos((life + tmp) * math.pi / 180) * maxRingRadius, 255, 255, 255, 50)
 		graphics.drawLine(x, y, x + math.sin((life - tmp) * math.pi / 180) * maxRingRadius, y + math.cos((life - tmp) * math.pi / 180) * maxRingRadius, 255, 255, 255, 50)
 		
-
 		graphics.drawLine(x, y, mx, my, 255, 255, 255, 150)
+
 
 		graphics.drawText(x + 3, y + 3, (life == 361 and "+" or math.floor(life)) .. "°", 255, 255, 255, 255)
 
@@ -3162,7 +3170,113 @@ end)
 
 sim.can_move(shot, elem.DEFAULT_PT_EMBR, 2)
 
+local resetNukeScreenflash = 0
 
+event.register(event.tick, function()
+	if resetNukeScreenflash > 0 then
+		graphics.fillRect(0, 0, sim.XRES, sim.YRES, 255, 255, 127, resetNukeScreenflash * 10)
+	end
+end)  
+event.register(event.aftersim, function(a, b, c, d)
+	if resetNukeScreenflash > 0 then
+		resetNukeScreenflash = resetNukeScreenflash - 1
+	end
+end)  
+
+local resetByCtype = {
+	[elem.DEFAULT_PT_SPRK] = true,
+	[elem.DEFAULT_PT_ICEI] = true,
+	[elem.DEFAULT_PT_SNOW] = true,
+	[elem.DEFAULT_PT_LAVA] = true,
+	[mlva] = true, -- RSET can purify MELT
+	[melt] = true,
+}
+
+local unresettable = {
+	[elem.DEFAULT_PT_DMND] = true,
+	[rset] = true,
+}
+
+local resetVx
+local resetVy
+local resetTemp
+local resetCtype
+local function resetParticle(i, x, y, type, ctype, filter, modeVel, modeTemp, modeCtype)
+	if not unresettable[type] and (filter == 0 or type == filter) then
+		if modeVel then
+			resetVx = sim.partProperty(i, "vx")
+			resetVy = sim.partProperty(i, "vy")
+		end
+
+		if modeTemp then
+			resetTemp = sim.partProperty(i, "temp")
+		end
+
+		if modeCtype then
+			resetCtype = sim.partProperty(i, "ctype")
+			sim.partCreate(i, x, y, type)
+			sim.partProperty(i, "ctype", sim.partProperty(i, "ctype"))
+		else
+			sim.partCreate(i, x, y, resetByCtype[type] and ctype ~= 0 and ctype or type)
+		end
+
+		if modeVel then
+			sim.partProperty(i, "vx", sim.partProperty(i, "vx"))
+			sim.partProperty(i, "vy", sim.partProperty(i, "vy"))
+		end
+		if modeTemp then
+			sim.partProperty(i, "temp", sim.partProperty(i, "temp"))
+		end
+	end
+end
+
+-- ctype: Type to reset particles of. Works on all particles if not set.
+-- life: Mode.
+--  0b000 - Reset all properties.
+--  0b001 - Reset all properties except velocity.
+--  0b010 - Reset all properties except temperature.
+--  0b100 - Reset all properties except ctype. (disables ctype reversion)
+elem.element(rset, elem.element(elem.DEFAULT_PT_CONV))
+elem.property(rset, "Name", "RSET")
+elem.property(rset, "Description", "Resetter. Resets the properties of particles to default on contact.")
+elem.property(rset, "Colour", 0xFE31AF)
+elem.property(rset, "MenuSection", elem.SC_SPECIAL)
+elem.property(rset, "Update", function(i, x, y, s, n)
+	if s ~= n then -- Extremely sexy optimization
+		local ctype = sim.partProperty(i, "ctype")
+		local life = sim.partProperty(i, "life")
+		modeVel, modeTemp, modeCtype = bit.band(life, 0x1) ~= 0, bit.band(life, 0x2) ~= 0, bit.band(life, 0x4) ~= 0
+		for cx = -1, 1 do
+			for cy = -1, 1 do
+				local id = sim.partID(x + cx, y + cy)
+				if id ~= nil then
+					local ntype = sim.partProperty(id, "type")
+					local nctype = sim.partProperty(id, "ctype")
+
+					if ntype == elem.DEFAULT_PT_EMP and sim.partProperty(id, "life") > 0 then
+						resetNukeScreenflash = 10
+						sim.partChangeType(i, elem.DEFAULT_PT_BOMB)
+						for k,j in sim.parts() do 
+							if math.random() < 0.05 then -- Don't affect all particles, like EMP
+								local rx, ry = sim.partPosition(k)
+								local stype = sim.partProperty(k, "type")
+								local sctype = sim.partProperty(k, "ctype")
+								-- Particles frozen inside stasis wall are protected from reset nuke
+								if not (tpt.get_wallmap(rx / 4, ry / 4) == 18 and tpt.get_elecmap(rx / 4, ry / 4) == 0) then -- Stasis wall
+									resetParticle(k, rx, ry, stype, sctype, ctype, life, modeVel, modeTemp, modeCtype)
+								else
+
+								end
+							end
+						end
+					end
+
+					resetParticle(id, x + cx, y + cy, ntype, nctype, ctype, life, modeVel, modeTemp, modeCtype)
+				end
+			end
+		end
+	end
+end)
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
