@@ -50,6 +50,29 @@ local mouseButtonType = {
 	[2] = function() return tpt.selecteda end,
 }
 
+-- Creates a dropdown window from the choices provided
+function createDropdown(options, x, y, width, height, action)
+	local dropdownWindow = Window:new(x, y, width, (height - 1) * #options + 1)
+	local buttonChoices = {}
+	local buttonNames = {}
+	for i,j in pairs(options) do
+		local dropdownButton = Button:new(0, (height - 1) * (i - 1), width, height, j)
+		dropdownButton:action(
+			function(sender)
+				action(buttonChoices[sender], buttonNames[sender])
+				interface.closeWindow(dropdownWindow)
+			end)
+		dropdownButton:text(j)
+		buttonChoices[dropdownButton] = i
+		buttonNames[dropdownButton] = j
+		dropdownWindow:addComponent(dropdownButton)
+	end
+	dropdownWindow:onTryExit(function()
+		interface.closeWindow(dropdownWindow)
+	end)
+	interface.showWindow(dropdownWindow)
+end
+
 local copyInterfaceActive = false
 local zoomLensFree = false
 local shiftHeld = false
@@ -111,61 +134,7 @@ local shiftTriangleHold = false
 local shiftTriangleID = -1
 
 -- local mouseDown = false
-event.register(event.mousedown, function(x, y, button)
-	if mouseButtonType[button] ~= nil and mouseButtonType[button]() == "FANMOD_PT_FFLD" and not zoomLensFree and not copyInterfaceActive then
-		-- print("Gettin Printed")
-		-- mouseDown = true
-		local gx, gy = sim.adjustCoords(x, y)
-		if (gx >= 4 and gx <= sim.XRES - 4) and (gy >= 4 and gy <= sim.YRES - 4) then
-			-- print (gx, gy)
-			local i = sim.partCreate(-1, gx, gy, ffld)
 
-			if tpt.brushID == 0 then
-				sim.partProperty(i, "tmp", 0x010);
-			elseif tpt.brushID == 1 then
-				sim.partProperty(i, "tmp", 0x020);
-			elseif tpt.brushID == 2 then
-				sim.partProperty(i, "tmp", 0x040);
-				if shiftHeld then
-					shiftTriangleHold = true
-					shiftTriangleID = i
-				end
-			end
-
-			sim.partProperty(i, "temp", math.max(tpt.brushx, tpt.brushy) + 273.15 + 1);
-			sim.partProperty(i, tmp4, 1) -- USE NEW MODE ENCODING
-			return false
-		end
-	end
-
-	zoomLensFree = false
-	copyInterfaceActive = false
-end) 
-
--- Changes the direction of the triangular forcefield when drawn with a line
-event.register(event.mouseup, function(x, y, button, reason)
-	if shiftTriangleHold then
-		-- print("Gettin Printed")
-		-- mouseDown = true
-		local gx, gy = sim.adjustCoords(x, y)
-		local px, py = sim.partPosition(shiftTriangleID)
-		gx = gx - px
-		gy = gy - py
-
-		if gx > 0 and gx > math.abs(gy) then
-			sim.partProperty(shiftTriangleID, "tmp", 0x060)
-		elseif gx < 0 and -gx > math.abs(gy) then
-			sim.partProperty(shiftTriangleID, "tmp", 0x070)
-		elseif gy > 0 then
-			sim.partProperty(shiftTriangleID, "tmp", 0x050)
-		else
-			sim.partProperty(shiftTriangleID, "tmp", 0x040)
-		end
-		
-	end
-	shiftTriangleHold = false
-	shiftTriangleID = -1
-end) 
 
 -- event.register(event.blur, function()
 	-- print("Where We Are")
@@ -827,9 +796,9 @@ local ffldIgnore = {
 	[ffld] = true,
 }
 
-function shouldIgnore(type, fieldCtype, mode)
-	if mode == 0x1 and type == elem.DEFAULT_PT_EMBR then
-		return false
+function shouldIgnore(type, fieldCtype, action)
+	if action == 0x1 and type == elem.DEFAULT_PT_EMBR then
+		return true
 	end
 
 	return ffldIgnore[type] and type ~= fieldCtype
@@ -852,7 +821,7 @@ end
 
 elem.element(ffld, elem.element(elem.DEFAULT_PT_CLNE))
 elem.property(ffld, "Name", "FFLD")
-elem.property(ffld, "Description", "Forcefield generator. Repels parts of its ctype. Temp sets range, TMP sets mode. Toggle with PSCN/NSCN or ARAY.")
+elem.property(ffld, "Description", "Forcefield generator. Repels parts of its ctype. Temp sets range, Shift+click to set mode. Toggle with PSCN/NSCN or ARAY.")
 elem.property(ffld, "Colour", 0x00de94)
 elem.property(ffld, "HeatConduct", 0)
 elem.property(ffld, "Hardness", 0)
@@ -961,7 +930,7 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 			for k,d in pairs(nearby) do
 				local px, py = sim.partPosition(d)
 				if not px or not py then print(k, d, px, py) end
-				if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype) then
+				if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype, action) then
 					shieldActionFunctions[action](d, x, y)
 					any = true
 				end
@@ -1083,6 +1052,187 @@ elem.property(ffld, "CtypeDraw", function(i, t)
 		end
 	end
 end)
+
+local ffldPatternNames = {
+	"Matching ctype",
+	"Not matching ctype",
+	"All if any match ctype",
+	"All if none match ctype",
+	"All if any don't match type",
+	"All if all match ctype",
+	"All particles in range",
+	"Matching ctype's menu section",
+	"Matching ctype's state of matter",
+	"Not matching ctype's state of matter",
+	"Hotter than ctype (as number)",
+	"Colder than ctype (as number)",
+	"Matching selected element",
+	"Not matching selected element",
+	"Not matching ctype's menu section",
+}
+
+local ffldShapeNames = {
+	"None",
+	"Circle",
+	"Square",
+	"Diamond",
+	"Triangle (up)",
+	"Triangle (down)",
+	"Triangle (right)",
+	"Triangle (left)",
+}
+
+local ffldActionNames = {
+	"Repel",
+	"Destroy",
+	"Suspend",
+	"Detect",
+	"Superheat",
+	"Supercool",
+	"Encase",
+	"Annihilate",
+	"Attract",
+	"Collect",
+	"Highlight",
+	"Paint w/deco color",
+	"Delete",
+}
+
+-- FFLD placement handling
+event.register(event.mousedown, function(x, y, button)
+	local underMouse = sim.pmap(sim.adjustCoords(x, y))
+	if shiftHeld and underMouse and sim.partProperty(underMouse, "type") == ffld then
+		shiftHeld = false
+
+		local newFormat = sim.partProperty(underMouse, tmp4)
+		local tmp = sim.partProperty(underMouse, "tmp")
+		
+		local pattern
+		local shape
+		local action
+
+		if newFormat == 1 then
+			pattern = bit.band(tmp, 0xF00)
+			shape = bit.band(tmp, 0x0F0)
+			action = bit.band(tmp, 0x00F)
+		else
+			pattern = oldModeFormatMap[bit.band(tmp, 0x11000000)]
+			shape = oldModeFormatMap[bit.band(tmp, 0x00111000)]
+			action = oldModeFormatMap[bit.band(tmp, 0x00000111)]
+		end
+
+		pattern = pattern / 0x100
+		shape = shape / 0x010
+		action = action / 0x001
+
+		local ffldConfigWindow = Window:new(-1, -1, 200, 76)
+
+		local patternDropdown = Button:new(10, 10, 180, 16)
+		patternDropdown:action(
+			function(sender)
+				local windowX, windowY = ffldConfigWindow:position()
+				createDropdown(ffldPatternNames, 10 + windowX, 10 + windowY, 180, 16, 
+					function(a, b)
+						patternDropdown:text(b)
+						pattern = a - 1
+					end)
+			end)
+		patternDropdown:text(ffldPatternNames[pattern + 1])
+		ffldConfigWindow:addComponent(patternDropdown)
+		
+		local shapeDropdown = Button:new(10, 30, 180, 16)
+		shapeDropdown:action(
+			function(sender)
+				local windowX, windowY = ffldConfigWindow:position()
+				createDropdown(ffldShapeNames, 10 + windowX, 30 + windowY, 180, 16, 
+					function(a, b)
+						shapeDropdown:text(b)
+						shape = a - 1
+					end)
+			end)
+		shapeDropdown:text(ffldShapeNames[shape + 1])
+		ffldConfigWindow:addComponent(shapeDropdown)
+		
+		local actionDropdown = Button:new(10, 50, 180, 16)
+		actionDropdown:action(
+			function(sender)
+				local windowX, windowY = ffldConfigWindow:position()
+				createDropdown(ffldActionNames, 10 + windowX, 50 + windowY, 180, 16, 
+					function(a, b)
+						actionDropdown:text(b)
+						action = a - 1
+					end)
+			end)
+		actionDropdown:text(ffldActionNames[action + 1])
+		ffldConfigWindow:addComponent(actionDropdown)
+
+		ffldConfigWindow:onTryExit(function()
+			sim.takeSnapshot()
+			-- Subversively convert old format to new format
+			sim.partProperty(underMouse, tmp4, 1)
+			sim.partProperty(underMouse, "tmp", pattern * 0x100 + shape * 0x010 + action * 0x001)
+			interface.closeWindow(ffldConfigWindow)
+		end)
+		interface.showWindow(ffldConfigWindow)
+		return false
+	end
+
+
+	if mouseButtonType[button] ~= nil and mouseButtonType[button]() == "FANMOD_PT_FFLD" and not zoomLensFree and not copyInterfaceActive then
+		-- print("Gettin Printed")
+		-- mouseDown = true
+		local gx, gy = sim.adjustCoords(x, y)
+		if (gx >= 4 and gx <= sim.XRES - 4) and (gy >= 4 and gy <= sim.YRES - 4) then
+			-- print (gx, gy)
+			local i = sim.partCreate(-1, gx, gy, ffld)
+
+			if tpt.brushID == 0 then
+				sim.partProperty(i, "tmp", 0x010);
+			elseif tpt.brushID == 1 then
+				sim.partProperty(i, "tmp", 0x020);
+			elseif tpt.brushID == 2 then
+				sim.partProperty(i, "tmp", 0x040);
+				if shiftHeld then
+					shiftTriangleHold = true
+					shiftTriangleID = i
+				end
+			end
+
+			sim.partProperty(i, "temp", math.max(tpt.brushx, tpt.brushy) + 273.15 + 1);
+			sim.partProperty(i, tmp4, 1) -- USE NEW MODE ENCODING
+			return false
+		end
+	end
+
+	zoomLensFree = false
+	copyInterfaceActive = false
+end) 
+
+-- Changes the direction of the triangular forcefield when drawn with a line
+event.register(event.mouseup, function(x, y, button, reason)
+	if shiftTriangleHold then
+		-- print("Gettin Printed")
+		-- mouseDown = true
+		local gx, gy = sim.adjustCoords(x, y)
+		local px, py = sim.partPosition(shiftTriangleID)
+		gx = gx - px
+		gy = gy - py
+
+		if gx > 0 and gx > math.abs(gy) then
+			sim.partProperty(shiftTriangleID, "tmp", 0x060)
+		elseif gx < 0 and -gx > math.abs(gy) then
+			sim.partProperty(shiftTriangleID, "tmp", 0x070)
+		elseif gy > 0 then
+			sim.partProperty(shiftTriangleID, "tmp", 0x050)
+		else
+			sim.partProperty(shiftTriangleID, "tmp", 0x040)
+		end
+		
+	end
+	shiftTriangleHold = false
+	shiftTriangleID = -1
+end)
+
 
 local graphiteIgniters = {
 	[elem.DEFAULT_PT_FIRE] = true,
@@ -3201,8 +3351,8 @@ local resetVx
 local resetVy
 local resetTemp
 local resetCtype
-local function resetParticle(i, x, y, type, ctype, filter, modeVel, modeTemp, modeCtype)
-	if not unresettable[type] and (filter == 0 or type == filter) then
+local function resetParticle(i, x, y, ntype, nctype, ctype, modeVel, modeTemp, modeCtype)
+	if not unresettable[ntype] and (nctype == 0 or ntype == nctype) then
 		if modeVel then
 			resetVx = sim.partProperty(i, "vx")
 			resetVy = sim.partProperty(i, "vy")
@@ -3214,18 +3364,18 @@ local function resetParticle(i, x, y, type, ctype, filter, modeVel, modeTemp, mo
 
 		if modeCtype then
 			resetCtype = sim.partProperty(i, "ctype")
-			sim.partCreate(i, x, y, type)
-			sim.partProperty(i, "ctype", sim.partProperty(i, "ctype"))
+			sim.partCreate(i, x, y, ntype)
+			sim.partProperty(i, "ctype", resetCtype)
 		else
-			sim.partCreate(i, x, y, resetByCtype[type] and ctype ~= 0 and ctype or type)
+			sim.partCreate(i, x, y, resetByCtype[ntype] and ctype ~= 0 and ctype or ntype)
 		end
 
 		if modeVel then
-			sim.partProperty(i, "vx", sim.partProperty(i, "vx"))
-			sim.partProperty(i, "vy", sim.partProperty(i, "vy"))
+			sim.partProperty(i, "vx", resetVx)
+			sim.partProperty(i, "vy", resetVy)
 		end
 		if modeTemp then
-			sim.partProperty(i, "temp", sim.partProperty(i, "temp"))
+			sim.partProperty(i, "temp", resetTemp)
 		end
 	end
 end
@@ -3238,7 +3388,7 @@ end
 --  0b100 - Reset all properties except ctype. (disables ctype reversion)
 elem.element(rset, elem.element(elem.DEFAULT_PT_CONV))
 elem.property(rset, "Name", "RSET")
-elem.property(rset, "Description", "Resetter. Resets the properties of particles to default on contact.")
+elem.property(rset, "Description", "Resetter. Resets the properties of particles to default on contact. Shift-click to configure.")
 elem.property(rset, "Colour", 0xFE31AF)
 elem.property(rset, "MenuSection", elem.SC_SPECIAL)
 elem.property(rset, "Update", function(i, x, y, s, n)
@@ -3246,6 +3396,7 @@ elem.property(rset, "Update", function(i, x, y, s, n)
 		local ctype = sim.partProperty(i, "ctype")
 		local life = sim.partProperty(i, "life")
 		modeVel, modeTemp, modeCtype = bit.band(life, 0x1) ~= 0, bit.band(life, 0x2) ~= 0, bit.band(life, 0x4) ~= 0
+		-- print(modeVel, modeTemp, modeCtype)
 		for cx = -1, 1 do
 			for cy = -1, 1 do
 				local id = sim.partID(x + cx, y + cy)
@@ -3263,7 +3414,7 @@ elem.property(rset, "Update", function(i, x, y, s, n)
 								local sctype = sim.partProperty(k, "ctype")
 								-- Particles frozen inside stasis wall are protected from reset nuke
 								if not (tpt.get_wallmap(rx / 4, ry / 4) == 18 and tpt.get_elecmap(rx / 4, ry / 4) == 0) then -- Stasis wall
-									resetParticle(k, rx, ry, stype, sctype, ctype, life, modeVel, modeTemp, modeCtype)
+									resetParticle(k, rx, ry, stype, sctype, ctype, modeVel, modeTemp, modeCtype)
 								else
 
 								end
@@ -3271,12 +3422,63 @@ elem.property(rset, "Update", function(i, x, y, s, n)
 						end
 					end
 
-					resetParticle(id, x + cx, y + cy, ntype, nctype, ctype, life, modeVel, modeTemp, modeCtype)
+					resetParticle(id, x + cx, y + cy, ntype, nctype, ctype, modeVel, modeTemp, modeCtype)
 				end
 			end
 		end
 	end
 end)
+
+
+-- RSET configuration interface
+event.register(event.mousedown, function(x, y, button)
+	local underMouse = sim.pmap(sim.adjustCoords(x, y))
+	if shiftHeld and underMouse and sim.partProperty(underMouse, "type") == rset then
+		shiftHeld = false
+
+		local tmp = sim.partProperty(underMouse, "life")
+		
+		local vel = bit.band(tmp, 0x1)
+		local temp = bit.band(tmp, 0x2) / 0x2
+		local ctype = bit.band(tmp, 0x4) / 0x4
+
+		local rsetConfigWindow = Window:new(-1, -1, 150, 66)
+
+		local velCheckbox = Checkbox:new(10, 10, 180, 16, "Keep old velocity")
+		velCheckbox:action(
+			function(sender, checked)
+				vel = checked and 1 or 0
+			end)
+			velCheckbox:checked(vel == 1)
+		rsetConfigWindow:addComponent(velCheckbox)
+
+		local tempCheckbox = Checkbox:new(10, 25, 180, 16, "Keep old temperature")
+		tempCheckbox:action(
+			function(sender, checked)
+				temp = checked and 1 or 0
+			end)
+			tempCheckbox:checked(temp == 1)
+		rsetConfigWindow:addComponent(tempCheckbox)
+
+		local ctypeCheckbox = Checkbox:new(10, 40, 180, 16, "Keep old ctype")
+		ctypeCheckbox:action(
+			function(sender, checked)
+				ctype = checked and 1 or 0
+			end)
+			ctypeCheckbox:checked(ctype == 1)
+		rsetConfigWindow:addComponent(ctypeCheckbox)
+
+		rsetConfigWindow:onTryExit(function()
+			sim.takeSnapshot()
+			sim.partProperty(underMouse, "life", vel * 0x1 + temp * 0x2 + ctype * 0x4)
+			interface.closeWindow(rsetConfigWindow)
+		end)
+		interface.showWindow(rsetConfigWindow)
+		return false
+	end
+end) 
+
+
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
