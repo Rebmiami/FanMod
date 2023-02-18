@@ -32,9 +32,10 @@ local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
 local halo = elem.allocate("FanMod", "HALO") -- Halogens
 local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
 local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
-local chlw = elem.allocate("FanMod", "CHLW") -- Chlorinated water
-local chlw = elem.allocate("FanMod", "FLOR") -- Fluorite
-local chlw = elem.allocate("FanMod", "BFLR") -- Broken fluorite
+local chlw = elem.allocate("FanMod", "BFLR") -- Chlorinated water 
+-- (Internally referred to as "BFLR" because of an error in an earlier version)
+local flor = elem.allocate("FanMod", "FLOR") -- Fluorite
+local pflr = elem.allocate("FanMod", "PFLR2") -- Powdered fluorite
 
 -- v2 Elements
 local no32 = elem.allocate("FanMod", "NO32") -- Nobili32
@@ -1726,6 +1727,24 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 		sim.partProperty(i, "tmp2", y)
 		-- print (x, y)
 	end
+
+	if ctype == flor then
+		local pres = sim.pressure(x / sim.CELL, y / sim.CELL)
+		sim.partProperty(i, "tmp3", pres * 10)
+
+		local rn
+		if sim.partProperty(i, "temp") > 3000 + 273.15 then
+			rn = sim.pmap(x + math.random(7) - 4, y + math.random(7) - 4)
+		else
+			rn = sim.pmap(x + math.random(7) - 4, y + math.random(3) - 3)
+		end
+		if rn ~= nil and sim.partProperty(rn, "type") == elem.DEFAULT_PT_LAVA then
+			local x1, y1 = sim.partPosition(i)
+			local x2, y2 = sim.partPosition(rn)
+			sim.partPosition(i, x2, y2)
+			sim.partPosition(rn, x1, y1)
+		end
+	end
 end)
 
 local waters = {
@@ -2068,6 +2087,10 @@ local noFire = {
 	[elem.DEFAULT_PT_GLAS] = true,
 	[elem.DEFAULT_PT_TTAN] = true,
 	[elem.DEFAULT_PT_QRTZ] = true,
+	[flor] = true,
+	[pflr] = true,
+	[elem.DEFAULT_PT_ACID] = true,
+	[elem.DEFAULT_PT_CLST] = true,
 }
 
 -- Only a small subset of elements can survive charged HALO so that making weapons isn't *too* difficult
@@ -2262,6 +2285,105 @@ elem.property(chlw, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+
+elem.element(flor, elem.element(elem.DEFAULT_PT_QRTZ))
+elem.property(flor, "Name", "FLOR")
+elem.property(flor, "Description", "Fluorite. Can be refined into HALO. Interacts with light in interesting ways. Good for your chakras.")
+elem.property(flor, "Colour", 0xBE6FB2)
+
+elem.property(flor, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", math.random(10) - 1)
+end)
+
+local fluorineExciteMask = 0x000001FF
+local fluorineWlMultiplier =  0x00200000
+local fluorineTransmitMask = 0x000001FF * fluorineWlMultiplier
+
+local function florUpdate(i, x, y, s, n)
+
+	local emitWl = sim.partProperty(i, "ctype")
+	if emitWl ~= 0 and math.random(4) == 1 then
+		local np = sim.partCreate(-1, x, y, elem.DEFAULT_PT_PHOT)
+		sim.partProperty(np, "ctype", emitWl)
+		sim.partProperty(np, "temp", sim.partProperty(i, "temp"))
+		local angle = math.random() * math.pi * 2
+		sim.partProperty(np, "vx", math.cos(angle) * 3)
+		sim.partProperty(np, "vy", math.sin(angle) * 3)
+		sim.partProperty(i, "ctype", 0)
+	end
+
+
+	local photon = sim.photons(x, y)
+	if photon and sim.partProperty(photon, "type") == elem.DEFAULT_PT_PHOT then
+		local wl = sim.partProperty(photon, "ctype")
+		local excited = bit.band(wl, fluorineExciteMask)
+		if excited ~= 0 then
+			sim.partProperty(i, "ctype", excited * fluorineWlMultiplier)
+			sim.partProperty(photon, "ctype", 0)
+		else
+			local masked = bit.band(wl, fluorineTransmitMask)
+			sim.partProperty(photon, "ctype", masked)
+		end
+	end
+
+	if sim.partProperty(i, "type") == flor then
+		local pres = sim.pressure(x / sim.CELL, y / sim.CELL)
+		local tmp3 = sim.partProperty(i, "tmp3") / 10
+		if pres > tmp3 + 1 then
+			sim.partChangeType(i, pflr)
+			sim.partProperty(i, "ctype", fluorineTransmitMask)
+		end
+		sim.partProperty(i, "tmp3", pres * 10)
+	end
+
+	local r = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+	if r ~= nil then
+		local type = sim.partProperty(r, "type")
+		if type == elem.DEFAULT_PT_ACID or type == elem.DEFAULT_PT_CAUS then
+			sim.partChangeType(i, elem.DEFAULT_PT_CLST)
+			sim.partChangeType(r, halo)
+		end
+
+		if math.random(300) == 1 and chlwSpread[type] then
+			sim.partChangeType(r, chlw)
+			sim.partKill(i)
+		end
+	end
+end
+
+local function florGraphics(i, r, g, b)
+	local bright = (sim.partProperty(i, "tmp") - 4) * 10
+	local colr = r + bright * 2
+	local colg = g + bright * 1.7
+	local colb = b + bright * 0.8
+	
+	local pixel_mode = ren.PMODE_FLAT
+
+	if sim.partProperty(i, "ctype") > 0 then
+		pixel_mode = ren.PMODE_FLAT + ren.PMODE_GLOW
+	end
+
+	return 0,pixel_mode,255,colr,colg,colb,120,colr,colg,colb;
+end
+
+
+elem.property(flor, "Update", florUpdate)
+elem.property(flor, "Graphics", florGraphics)
+
+elem.element(pflr, elem.element(elem.DEFAULT_PT_PQRT))
+elem.property(pflr, "Name", "PFLR")
+elem.property(pflr, "Description", "Powdered fluorite.")
+elem.property(pflr, "Colour", 0xC67BC0)
+elem.property(pflr, "HighTemperatureTransition", flor)
+elem.property(pflr, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", math.random(10) - 1)
+end)
+
+elem.property(pflr, "Update", florUpdate)
+elem.property(pflr, "Graphics", florGraphics)
+
+sim.can_move(elem.DEFAULT_PT_PHOT, flor, 2)
+sim.can_move(elem.DEFAULT_PT_PHOT, pflr, 2)
 
 
 
