@@ -338,12 +338,23 @@ function tritupdate(i, x, y, s, n)
 	-- Not realistic, but making tritium fusion easy to activate makes it more useful.
 	if nearbyRadiation or (sim.partProperty(i, "temp") > 1273.15 and sim.pressure(x/4, y/4) > 10.0) then
 		local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
-		if tpt.get_property('type', cx, cy) == elem.DEFAULT_PT_DEUT then
-			sim.partProperty(i, "temp", sim.partProperty(i, "temp") + math.random(750, 1249))
+		local r = sim.pmap(cx, cy)
+		if r and sim.partProperty(r, "type") == elem.DEFAULT_PT_DEUT and sim.partProperty(i, "life") ~= 1 then
+			sim.partProperty(i, "tmp", 20 + math.random(20))
+			sim.partProperty(i, "tmp2", sim.partProperty(r, "life"))
+			sim.partKill(r)
+		end
+	end
 
-			sim.partChangeType(i, elem.DEFAULT_PT_NOBL)
-			local elec = sim.partCreate(-3, x, y, elem.DEFAULT_PT_NEUT)
-			sim.partProperty(elec, "temp", sim.partProperty(i, "temp"))
+	local tmp = sim.partProperty(i, "tmp")
+	if tmp > 0 then
+		sim.partProperty(i, "tmp", tmp - 1)
+		if tmp == 1 then
+			sim.partProperty(i, "temp", sim.partProperty(i, "temp") + math.random(750, 1249) * sim.partProperty(i, "tmp2") / 10)
+
+			sim.partChangeType(i, elem.DEFAULT_PT_NBLE)
+			local np = sim.partCreate(-1, x, y, elem.DEFAULT_PT_NEUT)
+			sim.partProperty(np, "temp", sim.partProperty(i, "temp"))
 			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 10)
 		end
 	end
@@ -372,6 +383,13 @@ elements.property(trit, "Graphics", function (i, r, g, b)
 	if #nearGlass + #nearFilt > 0 then
 		pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
 	end
+
+	if sim.partProperty(i, "tmp") > 0 then
+		colr = 255
+		colg = 127
+		colb = 255
+		pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
+	end
 	
 	local firer = colr;
 	local fireg = colg;
@@ -389,7 +407,28 @@ elem.property(ltrt, "Properties", elem.TYPE_LIQUID + elem.PROP_NEUTPASS)
 elem.property(ltrt, "LowPressure", 10)
 elem.property(ltrt, "LowPressureTransition", trit)
 elem.property(ltrt, "Update", tritupdate)
+elem.property(ltrt, "Graphics", function (i, r, g, b)
+	
+	local colr = r
+	local colg = g
+	local colb = b
+	
+	local firea = 0
 
+	if sim.partProperty(i, "tmp") > 0 then
+		firea = 255
+		colr = 255
+		colg = 127
+		colb = 255
+		pixel_mode = ren.FIRE_ADD + ren.PMODE_GLOW
+	end
+	
+	local firer = colr;
+	local fireg = colg;
+	local fireb = colb;
+	
+	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
+end)
 sim.can_move(elem.DEFAULT_PT_ELEC, trit, 2)
 sim.can_move(elem.DEFAULT_PT_PHOT, trit, 2)
 sim.can_move(elem.DEFAULT_PT_ELEC, ltrt, 2)
@@ -2103,6 +2142,7 @@ local noPlasma = {
 	[elem.DEFAULT_PT_FRME] = true,
 	[elem.DEFAULT_PT_CLNE] = true,
 	[elem.DEFAULT_PT_TESC] = true,
+	[elem.DEFAULT_PT_SPRK] = true,
 }
 
 local halogenInteractions = {
