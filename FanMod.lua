@@ -3196,6 +3196,11 @@ elem.property(lncr, "Update", function(i, x, y, s, n)
 						local launched = sim.partCreate(-1, x + fvx * 3 + 0.5, y + fvy * 3 + 0.5, ctype)
 						sim.partProperty(launched, "vx", fvx * speed)
 						sim.partProperty(launched, "vy", fvy * speed)
+						
+						local lct = sim.partProperty(i, "tmp3")
+						if lct > 0 then
+							sim.partProperty(launched, "ctype", lct)
+						end
 					end
 				end
 			end
@@ -3514,7 +3519,7 @@ local resetVy
 local resetTemp
 local resetCtype
 local function resetParticle(i, x, y, ntype, nctype, ctype, modeVel, modeTemp, modeCtype)
-	if not unresettable[ntype] and (nctype == 0 or ntype == nctype) then
+	if not unresettable[ntype] and (ctype == 0 or ntype == ctype) then
 		if modeVel then
 			resetVx = sim.partProperty(i, "vx")
 			resetVy = sim.partProperty(i, "vy")
@@ -3529,7 +3534,7 @@ local function resetParticle(i, x, y, ntype, nctype, ctype, modeVel, modeTemp, m
 			sim.partCreate(i, x, y, ntype)
 			sim.partProperty(i, "ctype", resetCtype)
 		else
-			sim.partCreate(i, x, y, resetByCtype[ntype] and ctype ~= 0 and ctype or ntype)
+			sim.partCreate(i, x, y, resetByCtype[ntype] and nctype ~= 0 and nctype or ntype)
 		end
 
 		if modeVel then
@@ -3588,6 +3593,12 @@ elem.property(rset, "Update", function(i, x, y, s, n)
 				end
 			end
 		end
+	end
+end)
+
+elem.property(rset, "CtypeDraw", function(i, t)
+	if bit.band(elem.property(t, "Properties"), elem.PROP_NOCTYPEDRAW) == 0 then
+		sim.partProperty(i, "ctype", t)
 	end
 end)
 
