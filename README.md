@@ -1,4 +1,5 @@
-NOTE: The mod is not yet available on the Lua browser, so this is the only way to run it. It will be submitted to the Lua browser once all 7 elements have been implemented.
+NOTE: You can now download the script directly from the script manager.
+
 # HOW TO INSTALL
 
 Step 1: Go to the "Releases" section on the right side of this page, and select the release labeled "Latest":
