@@ -2980,6 +2980,22 @@ end)
 elem.property(no32, "Graphics", function (i, r, g, b)
 	local state = sim.partProperty(i, "life") + 1
 	local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state])
+	local partX, partY = sim.partPosition(i)
+	local zoomX, zoomY, zoomPixels = ren.zoomScope()
+	local zWinX, zWinY, zWinPxSize, zWinSize = ren.zoomWindow()
+	
+	local drawSize = zWinPxSize
+	if drawSize % 2 == 1 then
+		drawSize = drawSize + 1 -- Prevent odd numbers making the shapes look lopsided
+	end
+	if drawSize >= 8 and ren.zoomEnabled() and 
+		partX >= zoomX and 
+		partY >= zoomY and
+		partX < zoomX + zoomPixels and
+		partY < zoomY + zoomPixels then
+		return 0,ren.PMODE_NONE,0,0,0,0,0,0,0,0;
+	end
+
 	local pixel_mode = ren.PMODE_FLAT
 	return 0,pixel_mode,255,colr,colg,colb,0,0,0,0;
 end)
@@ -3008,7 +3024,8 @@ event.register(event.tick, function()
 					local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state])
 					local originX = zWinX + zWinPxSize * i
 					local originY = zWinY + zWinPxSize * j
-					graphics.fillRect(originX, originY, zWinPxSize, zWinPxSize, 0, 0, 0, 255)
+					local partX, partY = sim.partPosition(part);
+					gfx.drawRect(partX, partY, 1, 1, colr,colg,colb, 256);
 					if nobiliStateDrawFunctions[state] then
 						nobiliStateDrawFunctions[state](originX, originY, drawSize - 2, colr, colg, colb)
 					else
