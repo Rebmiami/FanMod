@@ -28,7 +28,6 @@ local mlva = elem.allocate("FanMod", "MLVA") -- Melting Lava
 
 local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
 
-
 local halo = elem.allocate("FanMod", "HALO") -- Halogens
 local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
 local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
@@ -39,9 +38,14 @@ local pflr = elem.allocate("FanMod", "PFLR2") -- Powdered fluorite
 
 -- v2 Elements
 local no32 = elem.allocate("FanMod", "NO32") -- Nobili32
+
 local lncr = elem.allocate("FanMod", "LNCR") -- Launcher
+
 local shot = elem.allocate("FanMod", "SHOT") -- Bullet
+
 local rset = elem.allocate("FanMod", "RSET") -- Resetter
+
+local fuel = elem.allocate("FanMod", "FUEL") -- Napalm
 
 -- Utilities
 
@@ -3667,6 +3671,83 @@ event.register(event.mousedown, function(x, y, button)
 		return false
 	end
 end) 
+
+-- elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
+
+event.register(event.aftersim, function()
+	for i=0,10000 do
+
+		local id = math.random(0, 235007)
+		if sim.partExists(id) and sim.partProperty(id, "type") == elem.DEFAULT_PT_DESL then
+			local x, y = sim.partPosition(id)
+			local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
+			local r = sim.pmap(cx, cy)
+			if r and sim.partProperty(r, "type") == elem.DEFAULT_PT_FSEP then
+				sim.partKill(r)
+				sim.partChangeType(id, fuel)
+			end
+		end
+	end
+end)
+
+elem.element(fuel, elem.element(elem.DEFAULT_PT_GEL))
+elem.property(fuel, "Name", "FUEL")
+elem.property(fuel, "Description", "Rocket fuel. Sticky napalm-like fluid that burns with extreme heat and pressure. Hard to ignite.")
+elem.property(fuel, "Colour", 0x650B00)
+elem.property(fuel, "MenuSection", elem.SC_EXPLOSIVE)
+elem.property(fuel, "Advection", 0.01)
+elem.property(fuel, "Weight", 14)
+elem.property(fuel, "HotAir", -0.0002)
+elem.property(fuel, "Properties", elem.TYPE_LIQUID + elem.PROP_LIFE_DEC)
+elem.property(fuel, "Update", function(i, x, y, s, n)
+
+	local life = sim.partProperty(i, "life")
+
+	if life > 0 then
+		sim.partProperty(i, "vx", 0) 
+		sim.partProperty(i, "vy", 0)
+		local fire = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_PLSM)
+		if fire ~= -1 then
+			sim.partProperty(fire, "temp", 4000)
+			sim.partProperty(fire, "life", 40)
+		end
+		sim.pressure(x / sim.CELL, y / sim.CELL, sim.pressure(x / sim.CELL, y / sim.CELL) + 0.2)
+		if life == 1 then
+			sim.partKill(i)
+		end
+	else
+		if s ~= n then
+			sim.partProperty(i, "vx", 0) 
+			sim.partProperty(i, "vy", 0)
+		end
+
+		if s > 0 then
+			if sim.partProperty(i, "temp") > 1500 then
+				sim.partProperty(i, "life", 600)
+			else
+				local nearPlsm = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_PLSM)
+				local nearSprk = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_SPRK)
+			
+				if #nearPlsm + #nearSprk > 0 then
+					sim.partProperty(i, "life", 600)
+				end
+			end
+		end
+
+		if n > 0 then
+			local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
+			local r = sim.photons(cx, cy)
+			if r and sim.partProperty(r, "temp") > 1000 then
+				sim.partProperty(i, "life", 600)
+			end
+		end
+	end
+
+	-- if sim.partProperty(i, "vx") ^ 2 + sim.partProperty(i, "vy") ^ 2 < 32 and neigh > 3 then
+	-- 	sim.partProperty(i, "x", x) 
+	-- 	sim.partProperty(i, "y", y)
+	-- end
+end)
 
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
