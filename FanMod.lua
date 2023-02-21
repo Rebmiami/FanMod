@@ -1714,8 +1714,7 @@ elem.property(bgph, "Update", function(i, x, y, s, n)
 			return
 		end
 
-		local nearby = sim.partNeighbours(x, y, 1, bgph)
-		if #nearby == 0 then
+		if n == 8 then
 			sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") - 1)
 			if sim.partProperty(i, "tmp") <= 0 then
 				for cx = -1, 1 do
@@ -3386,6 +3385,9 @@ local bulletTypeInfo = {
 
 	[elem.DEFAULT_PT_VOID] = {true, nil, nil, nil, nil, nil, 15},
 	[elem.DEFAULT_PT_DMND] = {true, nil, nil, nil, nil, nil, 3},
+
+	[fuel] = {false, nil, nil, 600, nil, nil, 5},
+	[bgph] = {false, nil, nil, 59, 30, nil, 5},
 }
 
 local bulletTypeFunctions = {
@@ -3403,6 +3405,76 @@ local bulletTypeFunctions = {
 		sim.partKill(i)
 	end,
 }
+
+local stkmAmmoFire
+local stk2AmmoFire
+
+local stkmAlive
+local stk2Alive
+
+local stkmAmmoMode
+local stk2AmmoMode
+
+event.register(event.beforesim, function()
+	
+	stkmAlive = false
+	stk2Alive = false
+end)
+
+event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
+	if stkmAlive and stkmAmmoMode == shot and key == interface.SDLK_DOWN and not rep then
+		stkmAmmoFire = true
+		return false
+	end
+	if stk2Alive and stk2AmmoMode == shot and key == interface.SDLK_s and not rep then
+		stk2AmmoFire = true
+		return false
+	end
+end)  
+
+local stkmShotPower = 50
+
+local function fireAmmoAtMouseFromParticle(i)
+	local x, y = sim.partPosition(i)
+	local mx, my = sim.adjustCoords(tpt.mousex, tpt.mousey)
+	local dx, dy = mx - x, my - y
+	local mag = math.sqrt(dx ^ 2 + dy ^ 2)
+	local nx, ny = dx / mag, dy / mag
+	local bullet = sim.partCreate(-1, x, y, shot)
+
+	sim.partProperty(bullet, "vx", nx * stkmShotPower)
+	sim.partProperty(bullet, "vy", ny * stkmShotPower)
+end
+
+elem.property(elem.DEFAULT_PT_STKM, "Update", function(i, x, y, s, n)
+	stkmAlive = true
+	local ammoMode = sim.partProperty(i, "ctype")
+	if stkmAmmoMode == shot and ammoMode == elem.DEFAULT_PT_EMBR then
+		sim.partProperty(i, "ctype", shot)
+	else
+		stkmAmmoMode = ammoMode
+	end
+
+	if stkmAmmoFire then
+		fireAmmoAtMouseFromParticle(i)
+		stkmAmmoFire = false
+	end
+end)
+
+elem.property(elem.DEFAULT_PT_STK2, "Update", function(i, x, y, s, n)
+	stk2Alive = true
+	local ammoMode = sim.partProperty(i, "ctype")
+	if stk2AmmoMode == shot and ammoMode == elem.DEFAULT_PT_EMBR then
+		sim.partProperty(i, "ctype", shot)
+	else
+		stk2AmmoMode = ammoMode
+	end
+
+	if stk2AmmoFire then
+		fireAmmoAtMouseFromParticle(i)
+		stk2AmmoFire = false
+	end
+end)
 
 elem.element(shot, elem.element(elem.DEFAULT_PT_CNCT))
 elem.property(shot, "Name", "AMMO")
