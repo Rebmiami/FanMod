@@ -2385,6 +2385,7 @@ local function florUpdate(i, x, y, s, n)
 		if type == elem.DEFAULT_PT_ACID or type == elem.DEFAULT_PT_CAUS then
 			sim.partChangeType(i, elem.DEFAULT_PT_CLST)
 			sim.partChangeType(r, halo)
+			sim.partProperty(r, "life", 0)
 		end
 
 		if math.random(300) == 1 and chlwSpread[type] then
