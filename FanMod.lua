@@ -3938,7 +3938,7 @@ end)
 
 elem.element(copp, elem.element(elem.DEFAULT_PT_METL))
 elem.property(copp, "Name", "COPP")
-elem.property(copp, "Description", "Copper.")
+elem.property(copp, "Description", "Copper. Superconducts at low temperatures.")
 elem.property(copp, "Colour", 0xD45232)
 elem.property(copp, "Hardness", 0) -- Corrosion resistant
 elem.property(copp, "MenuSection", elem.SC_ELEC)
