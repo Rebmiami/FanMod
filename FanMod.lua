@@ -47,6 +47,10 @@ local rset = elem.allocate("FanMod", "RSET") -- Resetter
 
 local fuel = elem.allocate("FanMod", "FUEL") -- Napalm
 
+local copp = elem.allocate("FanMod", "COPP") -- Copper
+local cuso = elem.allocate("FanMod", "CUSO") -- Copper(II) sulfate
+local brcs = elem.allocate("FanMod", "BRCS") -- Broken copper(II) sulfate
+
 -- Utilities
 
 local mouseButtonType = {
@@ -3289,6 +3293,12 @@ end)
 
 event.register(event.mousemove, function(x, y, button)
 	if launcherConfigActive then
+		if not sim.partExists(launcherConfigID) then
+			launcherConfigActive = false
+			launcherConfigID = -1
+			return
+		end
+
 		local px, py = sim.partPosition(launcherConfigID)
 		local mx, my = sim.adjustCoords(x, y)
 
@@ -3747,19 +3757,25 @@ end)
 
 -- elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
 
-event.register(event.aftersim, function()
-	for i=0,10000 do
+local partCheckProportion = 0.04
 
-		local id = math.random(0, 235007)
-		if sim.partExists(id) and sim.partProperty(id, "type") == elem.DEFAULT_PT_DESL then
-			local x, y = sim.partPosition(id)
-			local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
-			local r = sim.pmap(cx, cy)
-			if r and sim.partProperty(r, "type") == elem.DEFAULT_PT_FSEP then
-				sim.partKill(r)
-				sim.partChangeType(id, fuel)
+event.register(event.aftersim, function()
+	-- Are any of the reactants actually present in the simulation?
+	if sim.elementCount(elem.DEFAULT_PT_DESL) > 0 and sim.elementCount(elem.DEFAULT_PT_FSEP) > 0 then
+		for i=0,10000 do
+	
+			local id = math.random(0, 235007)
+			if sim.partExists(id) and sim.partProperty(id, "type") == elem.DEFAULT_PT_DESL then
+				local x, y = sim.partPosition(id)
+				local cx, cy = x + math.random(3) - 2, y + math.random(3) - 2
+				local r = sim.pmap(cx, cy)
+				if r and sim.partProperty(r, "type") == elem.DEFAULT_PT_FSEP then
+					sim.partKill(r)
+					sim.partChangeType(id, fuel)
+				end
 			end
 		end
+
 	end
 end)
 
@@ -3822,6 +3838,287 @@ elem.property(fuel, "Update", function(i, x, y, s, n)
 	-- end
 end)
 
+local copperOxidizationLimit = 20
+local copperSuperconductTemp = 35 -- Superconductance temperature of LBCO, a superconductor partly made of copper
+
+local function copperInstAbleID(p)
+	if p and sim.partProperty(p, "type") == copp and sim.partProperty(p, "temp") < copperSuperconductTemp and sim.partProperty(p, "life") == 0 then
+		return true
+	end
+	return false
+end
+
+local function copperInstAble(x, y)
+	local p = sim.pmap(x, y)
+	return copperInstAbleID(p)
+end
+
+local function copperFloodFill(x, y)
+	local bitmap = {}
+	for i = 0, sim.XRES - 1 do
+		bitmap[i] = {}
+		for j = 0, sim.YRES - 1 do
+			bitmap[i][j] = true
+		end
+	end
+	local pstack = {}
+	-- Push starting position to stack
+	pstack[#pstack + 1]	= {x, y}
+
+	repeat 
+	 	local pos = table.remove(pstack)
+	 	local x1, x2, y1 = pos[1], pos[1], pos[2]
+	 	while x1 >= sim.CELL and copperInstAble(x1 - 1, y1) and bitmap[x1 - 1][y1] do
+	 		x1 = x1 - 1
+	 	end
+	 	while x2 < sim.XRES - sim.CELL and copperInstAble(x2 + 1, y1) and bitmap[x2 + 1][y1] do
+	 		x2 = x2 + 1
+	 	end
+	 	for i = x1, x2 do
+	 		sim.partCreate(-1, i, y1, elem.DEFAULT_PT_SPRK)
+	 		bitmap[i][y1] = false
+	 	end
+	 	if y1 >= sim.CELL + 1 then
+	 		for i = x1, x2 do
+	 			if copperInstAble(i, y1 + 1) then
+	 				pstack[#pstack + 1]	= {i, y1 + 1}
+	 			end
+	 		end
+	 	end
+	 	if y1 < sim.YRES - sim.CELL - 1 then
+	 		for i = x1, x2 do
+	 			if copperInstAble(i, y1 - 1) then
+	 				pstack[#pstack + 1]	= {i, y1 - 1}
+	 			end
+	 		end
+	 	end
+	until (#pstack == 0)
+end
+
+
+-- Biostatic (stops living elements from growing)
+elem.property(elem.DEFAULT_PT_YEST, "Create", function(i, x, y, t, v)
+	local copper = sim.partNeighbours(x, y, 2, copp)
+	if #copper > 0 then
+		sim.partProperty(i, "type", elem.DEFAULT_PT_DYST)
+	end
+end)
+elem.property(elem.DEFAULT_PT_PLNT, "CreateAllowed", function(p, x, y, t)
+	if (p == -1 or p >= 0) and #sim.partNeighbours(x, y, 2, copp) > 0 then
+		return false
+	end
+	return true
+end)
+elem.property(elem.DEFAULT_PT_LIFE, "CreateAllowed", function(p, x, y, t)
+	if p == -1 and #sim.partNeighbours(x, y, 2, copp) > 0 then
+		return false
+	end
+	return true
+end)
+
+local virsImmune = {
+	[elem.DEFAULT_PT_SPRK] = true,
+	[copp] = true,
+}
+
+elem.property(elem.DEFAULT_PT_VIRS, "CreateAllowed", function(p, x, y, t)
+	return not virsImmune[sim.partProperty(p, "type")]
+end)
+
+elem.property(elem.DEFAULT_PT_VRSG, "CreateAllowed", function(p, x, y, t)
+	return not virsImmune[sim.partProperty(p, "type")]
+end)
+
+elem.property(elem.DEFAULT_PT_VRSS, "CreateAllowed", function(p, x, y, t)
+	return not virsImmune[sim.partProperty(p, "type")]
+end)
+
+elem.element(copp, elem.element(elem.DEFAULT_PT_METL))
+elem.property(copp, "Name", "COPP")
+elem.property(copp, "Description", "Copper.")
+elem.property(copp, "Colour", 0xE23B29)
+elem.property(copp, "Hardness", 0) -- Corrosion resistant
+elem.property(copp, "MenuSection", elem.SC_ELEC)
+elem.property(copp, "HighTemperature", 1084.62 + 273.15)
+-- elem.property(copp, "Properties", elem.TYPE_LIQUID + elem.PROP_LIFE_DEC)
+elem.property(copp, "Update", function(i, x, y, s, n)
+	if math.random(10) == 1 then
+		local oxy = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_OXYG)
+		if #oxy > 0 then
+			sim.partProperty(i, "tmp", math.min(sim.partProperty(i, "tmp") + 1, copperOxidizationLimit))
+		end
+	end
+end)
+local viruses = {
+	[elem.DEFAULT_PT_VIRS] = true,
+	[elem.DEFAULT_PT_VRSG] = true,
+	[elem.DEFAULT_PT_VRSS] = true,
+}
+elem.property(copp, "ChangeType", function(i, x, y, t1, t2)
+	if t2 == elem.DEFAULT_PT_SPRK then
+		if sim.partProperty(i, "temp") < copperSuperconductTemp then
+			copperFloodFill(x, y)
+		end
+		local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
+		for j,k in pairs(acid) do
+			sim.partChangeType(k, cuso)
+			sim.partProperty(k, "life", 0)
+			sim.partProperty(k, "tmp", 1) -- Hydrate
+		end
+		local cuso = sim.partNeighbours(x, y, 1, cuso)
+		for j,k in pairs(cuso) do
+			sim.partProperty(k, "life", 30) -- Growify
+		end
+	elseif t2 == elem.DEFAULT_PT_LAVA then
+		sim.partProperty(i, "tmp", 0) -- Remove oxidization when melted
+	end
+end)
+
+elem.property(copp, "Graphics", function (i, r, g, b)
+	pr, pg, pb = 87, 178, 90 -- Patina RGB
+	local oxidization = sim.partProperty(i, "tmp") / copperOxidizationLimit
+	
+	local pixel_mode = ren.PMODE_FLAT
+	local firea = 0
+	if sim.partProperty(i, "temp") < copperSuperconductTemp then
+		pixel_mode = ren.PMODE_FLAT + ren.FIRE_ADD
+		firea = 63
+		b = b + 60
+	end
+	return 0,pixel_mode,255,
+	r * (1 - oxidization) + pr * oxidization,
+	g * (1 - oxidization) + pg * oxidization,
+	b * (1 - oxidization) + pb * oxidization,
+	firea,0,0,255;
+end)
+
+
+local cusoAbsorbable = {
+	[elem.DEFAULT_PT_WATR] = true,
+	[elem.DEFAULT_PT_DSTW] = true,
+	[elem.DEFAULT_PT_SLTW] = true,
+}
+
+local cusoBrittleness = {
+	0.02, -- Dehydrated
+	1.5, -- Hydrated
+}
+
+local isCuso = {
+	[cuso] = true,
+	[brcs] = true,
+}
+
+elem.element(cuso, elem.element(elem.DEFAULT_PT_GLAS))
+elem.property(cuso, "Name", "CUSO")
+elem.property(cuso, "Description", "Copper(II) sulfate. Toxic crystal, formed when COPP electrolyzes ACID.")
+elem.property(cuso, "Colour", 0x005BF9)
+elem.property(cuso, "Hardness", 0)
+elem.property(cuso, "Properties", elem.TYPE_SOLID + elem.PROP_LIFE_DEC)
+elem.property(cuso, "MenuSection", elem.SC_SOLIDS)
+elem.property(cuso, "HighTemperature", 590)
+elem.property(cuso, "HighTemperatureTransition", sim.NT)
+elem.property(cuso, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", 1) -- Hydrated (can be dehydrated through heat)
+end)
+
+elem.element(brcs, elem.element(elem.DEFAULT_PT_SAND))
+elem.property(brcs, "Name", "BRCS")
+elem.property(brcs, "Description", "Broken copper(II) sulfate.")
+elem.property(brcs, "Colour", 0x2589FC)
+elem.property(brcs, "Hardness", 0)
+elem.property(brcs, "Properties", elem.TYPE_PART + elem.PROP_LIFE_DEC)
+elem.property(brcs, "MenuSection", elem.SC_POWDERS)
+elem.property(brcs, "HighTemperature", 590)
+elem.property(brcs, "HighTemperatureTransition", sim.NT)
+elem.property(brcs, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", 1) -- Hydrated (can be dehydrated through heat)
+end)
+
+local function cusoUpdate(i, x, y, s, n)
+	local hydrated = sim.partProperty(i, "tmp")
+	local growy = sim.partProperty(i, "life")
+	if growy > 0 then
+		local nx, ny = x + math.random(-1, 1), y + math.random(-1, 1)
+		local n = sim.pmap(nx, ny)
+		if n then
+			if sim.partProperty(n, "type") == elem.DEFAULT_PT_ACID then
+				sim.partCreate(n, nx, ny, cuso)
+				sim.partProperty(n, "life", 0)
+			elseif isCuso[sim.partProperty(n, "type")] and sim.partProperty(n, "life") == 0 then
+				sim.partProperty(n, "life", growy)
+				sim.partProperty(i, "life", 0)
+			end
+		end
+	end
+
+	if hydrated == 1 then
+		if s > 0 and sim.partProperty(i, "temp") > 110 + 273.15 then
+			local nx, ny = x + math.random(-1, 1), y + math.random(-1, 1)
+			local np = sim.partCreate(-1, nx, ny, elem.DEFAULT_PT_WTRV)
+			if np >= 0 then
+				sim.partProperty(i, "tmp", 0)
+			end
+		end
+
+		if s ~= n and math.random(50) == 1 then
+			local nx, ny = x + math.random(-1, 1), y + math.random(-1, 1)
+			local n = sim.pmap(nx, ny)
+			if n then
+				if cusoAbsorbable[sim.partProperty(n, "type")] then
+					sim.partChangeType(i, chlw)
+					sim.partKill(n)
+				end
+			end
+		end
+	else
+		if sim.partProperty(i, "temp") > 590 + 273.15 then
+			sim.partProperty(i, "type", elem.DEFAULT_PT_LAVA)
+			sim.partProperty(i, "ctype", cuso)
+		else
+			local nx, ny = x + math.random(-1, 1), y + math.random(-1, 1)
+			local n = sim.pmap(nx, ny)
+			if n then
+				if isCuso[sim.partProperty(n, "type")] and sim.partProperty(n, "tmp") == 1 then
+					sim.partProperty(i, "tmp", 1)
+					sim.partProperty(n, "tmp", 0)
+				elseif cusoAbsorbable[sim.partProperty(n, "type")] then
+					sim.partProperty(i, "tmp", 1)
+					sim.partKill(n)
+				end
+			end
+		end
+	end
+	local pres = sim.pressure(x / sim.CELL, y / sim.CELL)
+	local tmp3 = sim.partProperty(i, "tmp3") / 256
+	if sim.partProperty(i, "type") == cuso and math.abs(pres - tmp3) > cusoBrittleness[hydrated + 1] then
+		sim.partChangeType(i, brcs)
+	end
+	sim.partProperty(i, "tmp3", pres * 256)
+end
+elem.property(cuso, "Update", cusoUpdate) 
+elem.property(brcs, "Update", cusoUpdate) 
+
+local cusoDehydrateSat = 0.8
+local cusoDehydrateVal = 0.8
+local function cusoGraphics(i, r, g, b)
+	local hydrated = sim.partProperty(i, "tmp")
+
+	local colr = r
+	local colg = g
+	local colb = b
+
+	if hydrated == 0 then
+		colr = (colr + (255 - colr) * cusoDehydrateSat) * cusoDehydrateVal
+		colg = (colg + (255 - colg) * cusoDehydrateSat) * cusoDehydrateVal
+		colb = (colb + (255 - colb) * cusoDehydrateSat) * cusoDehydrateVal
+	end
+	
+	local pixel_mode = ren.PMODE_FLAT
+	return 0,pixel_mode,255,colr,colg,colb,firea,0,0,255;
+end
+elem.property(cuso, "Graphics", cusoGraphics)
+elem.property(brcs, "Graphics", cusoGraphics)
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
