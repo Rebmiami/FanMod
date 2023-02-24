@@ -31,7 +31,7 @@ local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
 local halo = elem.allocate("FanMod", "HALO") -- Halogens
 local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
 local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
-local chlw = elem.allocate("FanMod", "BFLR") -- Chlorinated water 
+local trtw = elem.allocate("FanMod", "BFLR") -- Treated water 
 -- (Internally referred to as "BFLR" because of an error in an earlier version)
 local flor = elem.allocate("FanMod", "FLOR") -- Fluorite
 local pflr = elem.allocate("FanMod", "PFLR2") -- Powdered fluorite
@@ -1803,7 +1803,7 @@ local waters = {
 	[elem.DEFAULT_PT_FRZW] = true,
 	[elem.DEFAULT_PT_ICEI] = true,
 	[elem.DEFAULT_PT_SNOW] = true,
-	[chlw] = true,
+	[trtw] = true,
 }
 
 local mLavaNeutralizers = {
@@ -2094,8 +2094,8 @@ local halogenReactions = {
 	[elem.DEFAULT_PT_RBDM] = elem.DEFAULT_PT_SALT,
 	[elem.DEFAULT_PT_LRBD] = elem.DEFAULT_PT_SALT,
 	[elem.DEFAULT_PT_LITH] = elem.DEFAULT_PT_SALT,
-	[elem.DEFAULT_PT_WATR] = chlw,
-	[elem.DEFAULT_PT_DSTW] = chlw,
+	[elem.DEFAULT_PT_WATR] = trtw,
+	[elem.DEFAULT_PT_DSTW] = trtw,
 	[elem.DEFAULT_PT_SPRK] = -1,
 	[elem.DEFAULT_PT_H2] = elem.DEFAULT_PT_CAUS, -- hydrochloric acid
 	[elem.DEFAULT_PT_PTNM] = elem.DEFAULT_PT_ACID, -- chloroplatinic acid
@@ -2125,7 +2125,7 @@ local dontProduceHeat = {
 
 local noFire = {
 	[elem.DEFAULT_PT_TUNG] = true,
-	[chlw] = true,
+	[trtw] = true,
 	[lhal] = true,
 	[halo] = true,
 	[fhal] = true,
@@ -2291,40 +2291,40 @@ elem.property(fhal, "HighTemperature", 112.57)
 elem.property(fhal, "HighTemperatureTransition", halo)
 elem.property(fhal, "HotAir", -0.0004)
 
-local chlwDissolve = {
+local trtwDissolve = {
 	[elem.DEFAULT_PT_ROCK] = true,
 	[elem.DEFAULT_PT_BRCK] = true,
 	[elem.DEFAULT_PT_STNE] = true,
 	[elem.DEFAULT_PT_CNCT] = true,
 }
 
-local chlwSpread = {
+local trtwSpread = {
 	[elem.DEFAULT_PT_WATR] = true,
 	[elem.DEFAULT_PT_DSTW] = true,
 	[elem.DEFAULT_PT_SLTW] = true,
 	[elem.DEFAULT_PT_FRZW] = true,
 }
 
-elem.element(chlw, elem.element(elem.DEFAULT_PT_DSTW))
-elem.property(chlw, "Name", "CHLW")
-elem.property(chlw, "Description", "Chlorinated water. Kills PLNT and slowly dissolves rocky materials. Not conductive.")
-elem.property(chlw, "Colour", 0x0851E5)
-elem.property(chlw, "Weight", 31)
-elem.property(chlw, "Properties", elem.TYPE_LIQUID)
-elem.property(chlw, "Update", function(i, x, y, s, n)
+elem.element(trtw, elem.element(elem.DEFAULT_PT_DSTW))
+elem.property(trtw, "Name", "TRTW")
+elem.property(trtw, "Description", "Chemically treated water. Kills PLNT and slowly dissolves rocky materials. Not conductive.")
+elem.property(trtw, "Colour", 0x0851E5)
+elem.property(trtw, "Weight", 31)
+elem.property(trtw, "Properties", elem.TYPE_LIQUID)
+elem.property(trtw, "Update", function(i, x, y, s, n)
 
 	local r = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
 	if r ~= nil then
 		local type = sim.partProperty(r, "type")
-		if math.random(200) == 1 and chlwDissolve[type] then
+		if math.random(200) == 1 and trtwDissolve[type] then
 			sim.partKill(r)
 			if math.random(10) == 1 then
 				sim.partKill(i)
 			end
 		end
 
-		if math.random(250) == 1 and chlwSpread[type] then
-			sim.partChangeType(r, chlw)
+		if math.random(250) == 1 and trtwSpread[type] then
+			sim.partChangeType(r, trtw)
 		end
 
 		if type == elem.DEFAULT_PT_PLNT then
@@ -2392,8 +2392,8 @@ local function florUpdate(i, x, y, s, n)
 			sim.partProperty(r, "life", 0)
 		end
 
-		if math.random(300) == 1 and chlwSpread[type] then
-			sim.partChangeType(r, chlw)
+		if math.random(300) == 1 and trtwSpread[type] then
+			sim.partChangeType(r, trtw)
 			sim.partKill(i)
 		end
 	end
@@ -3917,26 +3917,29 @@ elem.property(elem.DEFAULT_PT_LIFE, "CreateAllowed", function(p, x, y, t)
 end)
 
 local virsImmune = {
-	[elem.DEFAULT_PT_SPRK] = true,
-	[copp] = true,
+	[elem.DEFAULT_PT_SPRK] = function(p) return sim.partProperty(p, "ctype") == copp end,
+	[copp] = function(p) return true end,
 }
 
 elem.property(elem.DEFAULT_PT_VIRS, "CreateAllowed", function(p, x, y, t)
-	return not virsImmune[sim.partProperty(p, "type")]
+	local t = sim.partProperty(p, "type")
+	return p < 0 or (not virsImmune[t] or not virsImmune[t](p))
 end)
 
 elem.property(elem.DEFAULT_PT_VRSG, "CreateAllowed", function(p, x, y, t)
-	return not virsImmune[sim.partProperty(p, "type")]
+	local t = sim.partProperty(p, "type")
+	return p < 0 or (not virsImmune[t] or not virsImmune[t](p))
 end)
 
 elem.property(elem.DEFAULT_PT_VRSS, "CreateAllowed", function(p, x, y, t)
-	return not virsImmune[sim.partProperty(p, "type")]
+	local t = sim.partProperty(p, "type")
+	return p < 0 or (not virsImmune[t] or not virsImmune[t](p))
 end)
 
 elem.element(copp, elem.element(elem.DEFAULT_PT_METL))
 elem.property(copp, "Name", "COPP")
 elem.property(copp, "Description", "Copper.")
-elem.property(copp, "Colour", 0xE23B29)
+elem.property(copp, "Colour", 0xD45232)
 elem.property(copp, "Hardness", 0) -- Corrosion resistant
 elem.property(copp, "MenuSection", elem.SC_ELEC)
 elem.property(copp, "HighTemperature", 1084.62 + 273.15)
@@ -4066,7 +4069,7 @@ local function cusoUpdate(i, x, y, s, n)
 			local n = sim.pmap(nx, ny)
 			if n then
 				if cusoAbsorbable[sim.partProperty(n, "type")] then
-					sim.partChangeType(i, chlw)
+					sim.partChangeType(i, trtw)
 					sim.partKill(n)
 				end
 			end
