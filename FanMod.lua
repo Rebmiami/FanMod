@@ -51,6 +51,8 @@ local copp = elem.allocate("FanMod", "COPP") -- Copper
 local cuso = elem.allocate("FanMod", "CUSO") -- Copper(II) sulfate
 local brcs = elem.allocate("FanMod", "BRCS") -- Broken copper(II) sulfate
 
+local stgm = elem.allocate("FanMod", "STGM") -- Strange matter
+
 -- Utilities
 
 local mouseButtonType = {
@@ -4123,6 +4125,143 @@ end
 elem.property(cuso, "Graphics", cusoGraphics)
 elem.property(brcs, "Graphics", cusoGraphics)
 
+
+local stgmImmune = {
+	[stgm] = true,
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_CLNE] = true,
+	[elem.DEFAULT_PT_WARP] = true,
+}
+
+local stgmMaxStability = 100
+local stgmSplitMass = 50
+
+
+-- life: Energy. Expended to produce heat. Expends faster as mass increases.
+-- ctype: Mass. Dozens of normal particles can be compressed into a single STGM particle.
+-- tmp: Stability: Slowly falls as temperature rises. Maintained by adding fuel.
+
+elem.element(stgm, elem.element(elem.DEFAULT_PT_SING))
+elem.property(stgm, "Name", "STGM")
+elem.property(stgm, "Description", "Strange matter. Extremely dense fluid. When heated, converts matter and produces energy, but destabilizes if fed too much.")
+elem.property(stgm, "Colour", 0xFF5D00)
+elem.property(stgm, "HotAir", -0.01)
+elem.property(stgm, "Advection", 0.01)
+elem.property(stgm, "AirDrag", 0)
+elem.property(stgm, "Loss", 0.99)
+elem.property(stgm, "Gravity", 0.01)
+elem.property(stgm, "Falldown", 2)
+elem.property(stgm, "Properties", elem.TYPE_LIQUID)
+elem.property(stgm, "Weight", 99)
+elem.property(stgm, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", stgmMaxStability)
+end)
+
+elem.property(stgm, "Update", function(i, x, y, s, n)
+	local temp = sim.partProperty(i, "temp")
+	local fuel = sim.partProperty(i, "life")
+	local mass = sim.partProperty(i, "ctype")
+	local stability = sim.partProperty(i, "tmp")
+	if s ~= n then
+		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+		if p and sim.partProperty(p, "temp") > 1500 then
+			local ptype = sim.partProperty(p, "type")
+			if not stgmImmune[ptype] and elem.property(ptype, "HeatConduct") > 0 then
+				fuel = fuel + 300
+				mass = mass + 1
+				stability = stability + 1
+				sim.partKill(p)
+				if fuel > 3000 then
+					stability = stability - 10
+				end
+			end
+		end
+	end
+
+	if stability < stgmMaxStability or temp > 4000 then
+		if temp < 3500 + mass * 40 then -- As the STGM accumulates more mass, it must be kept at a higher temp to keep stable
+			stability = stability - math.random(0, 2)
+		end
+		if temp > 3000 then
+			local instability = (temp / 10000) ^ 15
+			if math.random() < instability then
+				stability = stability - 1
+			end
+
+			local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+			if p and sim.partProperty(p, "type") == stgm then
+				local pStability = sim.partProperty(p, "tmp")
+				local stabilityDiff = math.floor((stability - pStability) / 2)
+				stability = stability - stabilityDiff
+				sim.partProperty(p, "tmp", pStability + stabilityDiff)
+			end
+		end
+	end
+
+	if stability <= 0 then
+		sim.partKill(i)
+		sim.partCreate(-3, x, y, elem.DEFAULT_PT_WARP)
+		sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC)
+		return
+	else
+		if fuel > 0 then
+			temp = temp + 50
+			fuel = math.max(fuel - 1, 0)
+		end
+	end
+
+	stability = math.min(stability, stgmMaxStability)
+
+	if mass > stgmSplitMass then
+		local child = sim.partCreate(-1, x + math.random(-1, 1), y + math.random(-1, 1), stgm)
+		if child >= 0 then
+			mass = 0
+			sim.partProperty(child, "temp", temp)
+			sim.partProperty(child, "tmp", stability)
+		end
+	end
+
+	sim.partProperty(i, "temp", temp)
+	sim.partProperty(i, "life", fuel)
+	sim.partProperty(i, "ctype", mass)
+	sim.partProperty(i, "tmp", stability)
+end)
+
+elem.property(stgm, "Graphics", function (i, r, g, b)
+	local colr, colg, colb = r, g, b
+	
+	local pixel_mode = ren.PMODE_FLAT
+	local firea = 0
+	local stability = sim.partProperty(i, "tmp")
+	if sim.partProperty(i, "life") > 0 then
+		pixel_mode = ren.PMODE_FLAT + ren.PMODE_GLOW
+		firea = 255
+	elseif stability < stgmMaxStability then
+		colr, colg, colb = 13 + (1 - stability / stgmMaxStability) * 200, 41, 49 -- Neutral RGB
+		pixel_mode = ren.PMODE_FLAT + ren.PMODE_GLOW + ren.FIRE_ADD
+		firea = (1 - stability / stgmMaxStability) * 80
+	else
+		colr, colg, colb = 13, 41, 49 -- Neutral RGB
+	end
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+end)
+
+sim.can_move(stgm, stgm, 1)
+
+elem.property(elem.DEFAULT_PT_PROT, "Update", function(i, x, y, s, n)
+	if math.random(15) == 1 and sim.pressure(x / sim.CELL, y / sim.CELL) > 50 then
+		local index = sim.photons(x, y)
+		if index and index ~= i and sim.partProperty(index, "type") == elem.DEFAULT_PT_PROT then
+			local velocity = math.sqrt(sim.partProperty(i, "vx") ^ 2 + sim.partProperty(i, "vy") ^ 2)
+			if velocity > 20 then
+				sim.partChangeType(i, stgm)
+				sim.partProperty(i, "life", 0)
+				sim.partProperty(i, "ctype", 0)
+				sim.partProperty(i, "tmp", stgmMaxStability)
+			end
+		end
+	end
+end)
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
