@@ -62,7 +62,7 @@ local mouseButtonType = {
 }
 
 -- Creates a dropdown window from the choices provided
-function createDropdown(options, x, y, width, height, action)
+local function createDropdown(options, x, y, width, height, action)
 	local dropdownWindow = Window:new(x, y, width, (height - 1) * #options + 1)
 	local buttonChoices = {}
 	local buttonNames = {}
@@ -163,7 +163,7 @@ local solidWalls = { -- SMDB is only allowed to destroy solid walls.
 	[15] = true, -- energy only wall
 }
 
-function round(num)
+local function round(num)
 	return math.ceil(num - 0.5)
 end
 
@@ -209,7 +209,7 @@ end)
 
 local useMapCoords = false -- Future-proofing in case simulation.createWallBox is changed to use map instead of part coordinates
 
-function spawnSradJunk(x, y, isWall)
+local function spawnSradJunk(x, y, isWall)
 	-- print(x, y)
 	if not isWall then
 		local old = sim.pmap(x, y)
@@ -328,7 +328,7 @@ elem.property(trit, "Properties", elem.TYPE_GAS + elem.PROP_NEUTPASS)
 elem.property(trit, "HighPressure", 10)
 elem.property(trit, "HighPressureTransition", ltrt)
 
-function tritupdate(i, x, y, s, n)
+local function tritupdate(i, x, y, s, n)
 	if math.random(3000) == 1 then
 		sim.partChangeType(i, elem.DEFAULT_PT_HYGN)
 		local elec = sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC)
@@ -721,7 +721,7 @@ local pipeTypes = {
 	[elem.DEFAULT_PT_PPIP] = true
 }
 
-function transferPartToPipe(part, pipe)
+local function transferPartToPipe(part, pipe)
 	if sim.partProperty(pipe, "ctype") == 0 then
 		sim.partProperty(pipe, "ctype", sim.partProperty(part, "type"))
 		sim.partProperty(pipe, "temp", sim.partProperty(part, "temp"))
@@ -846,7 +846,7 @@ local ffldIgnore = {
 	[ffld] = true,
 }
 
-function shouldIgnore(type, fieldCtype, action)
+local function shouldIgnore(type, fieldCtype, action)
 	if action == 0x1 and type == elem.DEFAULT_PT_EMBR then
 		return true
 	end
@@ -854,7 +854,7 @@ function shouldIgnore(type, fieldCtype, action)
 	return ffldIgnore[type] and type ~= fieldCtype
 end
 
-function isInsideFieldShape(size, shape, dx, dy)
+local function isInsideFieldShape(size, shape, dx, dy)
 	return shieldFunctions[shape](size, dx, dy)
 
 end
@@ -1393,7 +1393,7 @@ event.register(event.tick, function()
 	end
 end)  
 
-function sparkGraphite(i, sparkDir)
+local function sparkGraphite(i, sparkDir)
 	-- if i == hoveredPart then
 	-- 	print("They tried to spark me!")
 	-- end
@@ -1420,7 +1420,7 @@ function sparkGraphite(i, sparkDir)
 	return false
 end
 
-function graphiteSparkNormal(i)
+local function graphiteSparkNormal(i)
 	if i ~= nil then
 		local type = sim.partProperty(i, "type")
 		if bit.band(elements.property(type, "Properties"), elements.PROP_CONDUCTS) ~= 0 and type ~= elem.DEFAULT_PT_PSCN then
@@ -1572,7 +1572,7 @@ end)
 
 
 
-function graphiteGraphics(i, r, g, b)
+local function graphiteGraphics(i, r, g, b)
 
 	local tempC = sim.partProperty(i, "temp") - 273.15
 	local burn = graphiteBurnHealth - sim.partProperty(i, "tmp")
@@ -1936,7 +1936,7 @@ elem.property(mlva, "Advection", 0.07)
 -- elem.property(mlva, "LowTemperature", 273.15 + 500)
 -- elem.property(mlva, "LowTemperatureTransition", melt)
 
-function neutralizeMlva(x, y)
+local function neutralizeMlva(x, y)
 
 	local toNeutralize = sim.partNeighbours(x, y, 3, mlva)
 
