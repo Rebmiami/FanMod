@@ -53,6 +53,9 @@ local brcs = elem.allocate("FanMod", "BRCS") -- Broken copper(II) sulfate
 
 local stgm = elem.allocate("FanMod", "STGM") -- Strange matter
 
+local fngs = elem.allocate("FanMod", "FNGS") -- Fungus
+local spor = elem.allocate("FanMod", "SPOR") -- Fungus spore
+
 -- Utilities
 
 local mouseButtonType = {
@@ -4262,6 +4265,332 @@ elem.property(elem.DEFAULT_PT_PROT, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+
+-- There are two types of substrates.
+-- "Moist" substrates include most biological materials. Mycelium spreading through these will gain life.
+local moistSubstrate = {
+	[elem.DEFAULT_PT_WOOD] = true,
+	[elem.DEFAULT_PT_PLNT] = true,
+	[elem.DEFAULT_PT_SPNG] = true,
+	[elem.DEFAULT_PT_GOO] = true,
+	[elem.DEFAULT_PT_WAX] = true,
+	[elem.DEFAULT_PT_CLST] = true,
+}
+-- "Dry" substrates include inorganic porous or natural materials. Mycelium can spread through these, but will not gain life.
+local drySubstrate = {
+	[elem.DEFAULT_PT_DUST] = true,
+	[elem.DEFAULT_PT_SAND] = true,
+	[elem.DEFAULT_PT_STNE] = true,
+	[elem.DEFAULT_PT_CNCT] = true,
+	[elem.DEFAULT_PT_BCOL] = true,
+	[elem.DEFAULT_PT_SAWD] = true,
+	[elem.DEFAULT_PT_BRCK] = true,
+	[elem.DEFAULT_PT_ROCK] = true,
+	[elem.DEFAULT_PT_COAL] = true,
+	
+	[elem.DEFAULT_PT_FUSE] = true,
+	[elem.DEFAULT_PT_TNT] = true,
+	[elem.DEFAULT_PT_IGNC] = true,
+}
+
+
+-- Property structure
+-- ctype: Genome.
+-- life: Water. Required to grow mushrooms. If water depletes, decays into dust.
+-- tmp: Mode.
+--  0x0: Mycelium
+--  0x1: Primordium ("pre-mushroom")
+--  0x2: Fruiting body (mushroom)
+--  0x3: Hymenium (creates spores)
+--  0x4: Surface mycelium
+--  0x8: Growing (can be combined with any other mode)
+-- tmp2: Reach. Used by mushrooms stipes and mycelia
+-- tmp3: Angle or radius, depending on context.
+elem.element(fngs, elem.element(elem.DEFAULT_PT_WOOD))
+elem.property(fngs, "Name", "FNGS")
+elem.property(fngs, "Description", "Fungus. Grows a network of mycelium through organic elements, then grows mushrooms that spread spores.")
+elem.property(fngs, "Colour", 0xDAD2B4)
+elem.property(fngs, "Create", function(i, x, y, t, v)
+	if v == 0 then -- When manually placed, create a clump of new mycelium
+		sim.partProperty(i, "tmp", 0x8 + 0x0)
+		sim.partProperty(i, "life", 10)
+	else
+		-- Make no assumptions of your mycelial brethren
+	end
+end)
+
+local defaultGenome = 2090292853
+
+-- Substitute for genes
+local stemHeight = 10
+local capRadius = 8
+local capHeight = 8
+
+local primInhibitRange = 10
+local primInvestment = 70
+
+local capAlgFlatness = 0.616
+local capAlgTheta = 2.32
+local capAlgWidth = 1.5
+
+local primInhibitModes = {
+	[0x1] = true,
+	[0x2] = true,
+	[0x3] = true,
+}
+
+-- Even numbers: positive X, odd numbers: negative X. Zero is a special case.
+-- Convert signed value to unsigned
+local function weaveFungusRadius(num)
+	if num < 0 then
+		return num * -2 - 1
+	else
+		return num * 2
+	end
+end
+-- Convert unsigned value to signed
+local function unweaveFungusRadius(num)
+	if num % 2 == 0 then
+		return num / 2
+	else
+		return (num + 1) / -2
+	end
+end
+
+local function sign(num)
+    return num > 0 and 1 or (num == 0 and 0 or -1)
+end
+
+local shroomCurveDerivativeSolutions = {
+	function(a, b, c)
+		return math.sqrt(-(math.sqrt(b ^ 2 - 3 * a * c) + b) / a) / math.sqrt(3)
+	end,
+	function(a, b, c)
+		return math.sqrt((math.sqrt(b ^ 2 - 3 * a * c) - b) / a) / math.sqrt(3)
+	end
+}
+
+local function shroomAlgoParamsToCoefficients(f, t)
+	return 1 - f, f * math.cos(t) * 3, f * math.sin(t) * 3
+end
+
+local function shroomCapCurve(x, a, b, c)
+	return -(a * (x ^ 6) + b * (x ^ 4) + c * (x ^ 2))
+end
+
+local function shroomCapCurveNormalized(x, a, b, c, w)
+	return shroomCapCurve(x * w, a, b, c) / 
+		((math.max(
+			shroomCapCurve(shroomCurveDerivativeSolutions[1](a, b, c), a, b, c), 
+			shroomCapCurve(shroomCurveDerivativeSolutions[2](a, b, c), a, b, c), 
+			shroomCapCurve(0, a, b, c))	- shroomCapCurve(w, a, b, c))) + 1
+end
+
+function unpackFungusGenome(genome)
+	return {
+		bit.band(genome, 0x0000000F) / 0x00000001, -- Stem height
+		bit.band(genome, 0x000000F0) / 0x00000010, -- Cap radius
+		bit.band(genome, 0x00000F00) / 0x00000100, -- Cap height
+		bit.band(genome, 0x0000F000) / 0x00001000, -- Prim inhibition range
+		bit.band(genome, 0x000F0000) / 0x00010000, -- Prim investment
+		bit.band(genome, 0x00F00000) / 0x00100000, -- Cap algo flatness
+		bit.band(genome, 0x0F000000) / 0x01000000, -- Cap algo theta
+		bit.band(genome, 0x70000000) / 0x10000000, -- Cap algo width
+	}
+end
+
+function packFungusGenome(genes)
+	return 
+		bit.band(genes[1] * 0x00000001, 0x0000000F) + -- Stem height
+		bit.band(genes[2] * 0x00000010, 0x000000F0) + -- Cap radius
+		bit.band(genes[3] * 0x00000100, 0x00000F00) + -- Cap height
+		bit.band(genes[4] * 0x00001000, 0x0000F000) + -- Prim inhibition range
+		bit.band(genes[5] * 0x00010000, 0x000F0000) + -- Prim investment
+		bit.band(genes[6] * 0x00100000, 0x00F00000) + -- Cap algo flatness
+		bit.band(genes[7] * 0x01000000, 0x0F000000) + -- Cap algo theta
+		bit.band(genes[8] * 0x10000000, 0x70000000)   -- Cap algo width
+end
+
+function getGenomeValues(genes)
+	return {
+		genes[1] * 2, -- Stem height
+		genes[2] + 1, -- Cap radius
+		genes[3] + 1, -- Cap height
+		genes[4] * 2, -- Prim inhibition range
+		genes[5] * 10, -- Prim investment
+		genes[6] / 15, -- Cap algo flatness
+		genes[7] * math.pi / 7 - math.pi, -- Cap algo theta
+		genes[8] / 14 + 1, -- Cap algo width
+	}
+end
+
+function unGetGenomeValues(vals)
+	return {
+		vals[1] / 2, -- Stem height
+		vals[2] - 1, -- Cap radius
+		vals[3] - 1, -- Cap height
+		vals[4] / 2, -- Prim inhibition range
+		vals[5] / 10, -- Prim investment
+		vals[6] * 15, -- Cap algo flatness
+		(vals[7] + math.pi) / math.pi * 7, -- Cap algo theta
+		(vals[8] - 1) * 14, -- Cap algo width
+	}
+end
+
+function genomeValuesToGenome(vals)
+	return packFungusGenome(unGetGenomeValues(vals))
+end
+
+function spawnMushroomInTheMiddleOfTheScreen()
+
+end
+
+elem.property(fngs, "Update", function(i, x, y, s, n)
+	-- Fungus is slow and does not need to update every tick
+	if math.random(10) == 1 then
+		local genome = sim.partProperty(i, "ctype")
+		local tmp = sim.partProperty(i, "tmp")
+		local mode = bit.band(tmp, 0x7)
+		local growing = bit.band(tmp, 0x8) ~= 0
+
+		local genes = unpackFungusGenome(genome)
+		local geneVals = getGenomeValues(genes)
+
+		if mode == 0 then -- Mycelium (spreads through substrate to gain resources)
+			if growing then
+				local reach = sim.partProperty(i, "tmp2")
+
+				local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
+				local adjFungus = sim.partNeighbours(px, py, 1, fngs)
+				local p = sim.pmap(px, py)
+				local ptype
+				if p then
+					ptype = sim.partProperty(p, "type")
+				end
+
+				local moist = moistSubstrate[ptype]
+				local dry = drySubstrate[ptype]
+
+				if #adjFungus < 1 and (not p or moist or dry) and reach < 20 then
+					-- if p then sim.partKill(p) end
+					local child = sim.partCreate(p or -1, px, py, fngs)
+					if child >= 0 then
+						if p then
+							sim.partProperty(child, "tmp", 0x8 + 0x0)
+							sim.partProperty(child, "tmp2", reach + 1)
+						else
+							sim.partProperty(child, "tmp", 0x8 + 0x4) -- "Surface" mycelium. Can grow shrooms
+							local angle = math.atan2(px - x, py - y)
+							sim.partProperty(child, "tmp3", (angle / math.pi * 1800) % 3600)
+						end
+						sim.partProperty(child, "life", 10)
+					end
+				end
+			end
+		elseif mode == 1 then -- Primordium (pre-mushroom, absorbs resources until ready to grow)
+			sim.partProperty(i, "tmp", 0x8 + 0x2)
+
+		elseif mode == 2 then -- Mushroom (grows from the mycelium, develops gills when mature)
+			if growing then
+				local reach = sim.partProperty(i, "tmp2")
+
+				if reach > stemHeight then
+					local capReach = reach - stemHeight
+					local radius = unweaveFungusRadius(sim.partProperty(i, "tmp3"))
+					local growUp = false
+					local nx, ny
+					if radius == 0 then
+						nx = x + math.random(2) * 2 - 3
+						ny = y
+						growUp = sim.pmap(x + 1, ny) and sim.pmap(x - 1, ny)
+					else
+						nx = x + sign(radius)
+						ny = y
+						growUp = sim.pmap(nx, ny)
+					end
+					if growUp then
+						nx = x
+						ny = y - 1
+					end
+
+					local a, b, c = shroomAlgoParamsToCoefficients(capAlgFlatness, capAlgTheta)
+					local capCurve = shroomCapCurveNormalized((math.abs(radius) + math.abs(nx - x)) / capRadius, a, b, c, capAlgWidth) * capHeight
+					if (capReach + math.abs(ny - y) < capHeight) and (math.abs(radius) + math.abs(nx - x) < capRadius) and capReach + math.abs(ny - y) < capCurve then
+						if growUp then
+							local child = sim.partCreate(-1, nx, ny, fngs)
+							if child >= 0 then
+								sim.partProperty(child, "tmp2", reach + 1)
+								sim.partProperty(child, "tmp", 0x8 + 0x2)
+								sim.partProperty(child, "life", 10)
+
+								sim.partProperty(child, "tmp3", weaveFungusRadius(radius))
+							end
+							sim.partProperty(i, "tmp", 0x2)
+						else
+							local child = sim.partCreate(-1, nx, ny, fngs)
+							if child >= 0 then
+								sim.partProperty(child, "tmp2", reach)
+								sim.partProperty(child, "tmp", 0x8 + 0x2)
+								sim.partProperty(child, "life", 10)
+
+								if radius == 0 then
+									sim.partProperty(child, "tmp3", weaveFungusRadius(nx - x))
+								else
+									sim.partProperty(child, "tmp3", weaveFungusRadius(radius) + 2)
+								end
+							end
+						end
+					end
+				else
+					local px, py = sim.partPosition(i) -- Exact floating point coordinates
+					local angle = sim.partProperty(i, "tmp3") * math.pi / 1800
+					local dx, dy = math.sin(angle) + (math.random() - 0.5) * 0.01, math.cos(angle)
+					local child = sim.partCreate(-1, px + dx + 0.5, py + dy + 0.5, fngs)
+					if child >= 0 then
+						sim.partPosition(child, px + dx, py + dy)
+						local changle = math.atan2(dx, dy - 0.05)
+						sim.partProperty(child, "tmp2", reach + 1)
+						sim.partProperty(child, "tmp", 0x8 + 0x2)
+						sim.partProperty(child, "life", 10)
+						sim.partProperty(i, "tmp", 0x2)
+						if reach + 1 > stemHeight then
+							sim.partProperty(child, "tmp3", 0)
+						else
+							sim.partProperty(child, "tmp3", (changle / math.pi * 1800) % 3600)
+						end
+					else
+						--local tp = sim.pmap(px + dx, py + dy)
+						--if not tp then
+						if math.floor(px + dx + 0.5) == x and math.floor(py + dy + 0.5) == y then
+							sim.partPosition(i, px + dx, py + dy)
+						end
+					end
+				end
+			end
+		elseif mode == 3 then -- Hymenium (creates spores)
+
+		else -- Surface mycelium (may form mushrooms)
+			if growing and math.random(1000) == 1 then
+				local canBecomePrim = true
+				local adjFungus = sim.partNeighbours(x, y, primInhibitRange, fngs)
+				for j,k in pairs(adjFungus) do
+					local adjTmp = sim.partProperty(k, "tmp")
+					local adjMode = bit.band(adjTmp, 0x7)
+					-- local adjGrowing = bit.band(tmp, 0x8) ~= 0
+					if primInhibitModes[adjMode] then
+						canBecomePrim = false
+						sim.partProperty(i, "tmp", 0x4) -- DIE.
+						break
+					end
+				end
+				if canBecomePrim then
+					sim.partProperty(i, "tmp", 0x8 + 0x1)
+				end
+			end
+		end
+	end
+end)
+
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
