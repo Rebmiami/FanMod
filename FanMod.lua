@@ -4312,6 +4312,8 @@ elem.property(fngs, "Description", "Fungus. Grows a network of mycelium through 
 elem.property(fngs, "Colour", 0xDAD2B4)
 elem.property(fngs, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a clump of new mycelium
+		sim.partProperty(i, "ctype", math.random(0, 0x7FFFFFFF))
+		-- sim.partProperty(i, "ctype", 2090292853)
 		sim.partProperty(i, "tmp", 0x8 + 0x0)
 		sim.partProperty(i, "life", 10)
 	else
@@ -4361,29 +4363,46 @@ local function sign(num)
     return num > 0 and 1 or (num == 0 and 0 or -1)
 end
 
-local shroomCurveDerivativeSolutions = {
+shroomCurveDerivativeSolutions = {
 	function(a, b, c)
-		return math.sqrt(-(math.sqrt(b ^ 2 - 3 * a * c) + b) / a) / math.sqrt(3)
+		return math.sqrt((-(math.sqrt(b ^ 2 - 3 * a * c) + b) / a) / 3)
 	end,
 	function(a, b, c)
-		return math.sqrt((math.sqrt(b ^ 2 - 3 * a * c) - b) / a) / math.sqrt(3)
+		return math.sqrt(((math.sqrt(b ^ 2 - 3 * a * c) - b) / a) / 3)
 	end
 }
 
-local function shroomAlgoParamsToCoefficients(f, t)
-	return 1 - f, f * math.cos(t) * 3, f * math.sin(t) * 3
+function shroomAlgoParamsToCoefficients(f, t, w)
+	return 
+		f + 0.2, 
+		(1 - f) * math.cos(t), 
+		(1 - f) * math.sin(t) * 3, 
+		w - f / 2 + ((1 - f) * math.sqrt(math.abs(t - 0.5))) / 5
 end
 
-local function shroomCapCurve(x, a, b, c)
+function shroomCapCurve(x, a, b, c)
 	return -(a * (x ^ 6) + b * (x ^ 4) + c * (x ^ 2))
 end
 
-local function shroomCapCurveNormalized(x, a, b, c, w)
-	return shroomCapCurve(x * w, a, b, c) / 
-		((math.max(
-			shroomCapCurve(shroomCurveDerivativeSolutions[1](a, b, c), a, b, c), 
-			shroomCapCurve(shroomCurveDerivativeSolutions[2](a, b, c), a, b, c), 
-			shroomCapCurve(0, a, b, c))	- shroomCapCurve(w, a, b, c))) + 1
+function nanCheck(num)
+	if num ~= num then 
+		return -math.huge
+	else 
+		return num 
+	end
+end
+
+function shroomCapCurveMaximum(a, b, c)
+	return math.max(
+		nanCheck(shroomCapCurve(shroomCurveDerivativeSolutions[1](a, b, c), a, b, c)), 
+		nanCheck(shroomCapCurve(shroomCurveDerivativeSolutions[2](a, b, c), a, b, c)), 
+		shroomCapCurve(0, a, b, c))
+end
+
+function shroomCapCurveScaled(x, a, b, c, d)
+	-- print(x, a, b, c, d)
+	return (shroomCapCurve(x * d, a, b, c) - shroomCapCurve(d, a, b, c)) / 
+		(shroomCapCurveMaximum(a, b, c) - shroomCapCurve(d, a, b, c))
 end
 
 function unpackFungusGenome(genome)
@@ -4392,23 +4411,21 @@ function unpackFungusGenome(genome)
 		bit.band(genome, 0x000000F0) / 0x00000010, -- Cap radius
 		bit.band(genome, 0x00000F00) / 0x00000100, -- Cap height
 		bit.band(genome, 0x0000F000) / 0x00001000, -- Prim inhibition range
-		bit.band(genome, 0x000F0000) / 0x00010000, -- Prim investment
-		bit.band(genome, 0x00F00000) / 0x00100000, -- Cap algo flatness
-		bit.band(genome, 0x0F000000) / 0x01000000, -- Cap algo theta
-		bit.band(genome, 0x70000000) / 0x10000000, -- Cap algo width
+		bit.band(genome, 0x003E0000) / 0x00020000, -- Cap algo flatness
+		bit.band(genome, 0x07C00000) / 0x00400000, -- Cap algo theta
+		bit.band(genome, 0x78000000) / 0x08000000, -- Cap algo width
 	}
 end
 
 function packFungusGenome(genes)
 	return 
-		bit.band(genes[1] * 0x00000001, 0x0000000F) + -- Stem height
-		bit.band(genes[2] * 0x00000010, 0x000000F0) + -- Cap radius
-		bit.band(genes[3] * 0x00000100, 0x00000F00) + -- Cap height
-		bit.band(genes[4] * 0x00001000, 0x0000F000) + -- Prim inhibition range
-		bit.band(genes[5] * 0x00010000, 0x000F0000) + -- Prim investment
-		bit.band(genes[6] * 0x00100000, 0x00F00000) + -- Cap algo flatness
-		bit.band(genes[7] * 0x01000000, 0x0F000000) + -- Cap algo theta
-		bit.band(genes[8] * 0x10000000, 0x70000000)   -- Cap algo width
+		bit.band(round(genes[1]) * 0x00000001, 0x0000000F) + -- Stem height
+		bit.band(round(genes[2]) * 0x00000010, 0x000000F0) + -- Cap radius
+		bit.band(round(genes[3]) * 0x00000100, 0x00000F00) + -- Cap height
+		bit.band(round(genes[4]) * 0x00001000, 0x0000F000) + -- Prim inhibition range
+		bit.band(round(genes[5]) * 0x00020000, 0x003E0000) + -- Cap algo flatness
+		bit.band(round(genes[6]) * 0x00400000, 0x07C00000) + -- Cap algo theta
+		bit.band(round(genes[7]) * 0x08000000, 0x78000000)   -- Cap algo width
 end
 
 function getGenomeValues(genes)
@@ -4417,23 +4434,21 @@ function getGenomeValues(genes)
 		genes[2] + 1, -- Cap radius
 		genes[3] + 1, -- Cap height
 		genes[4] * 2, -- Prim inhibition range
-		genes[5] * 10, -- Prim investment
-		genes[6] / 15, -- Cap algo flatness
-		genes[7] * math.pi / 7 - math.pi, -- Cap algo theta
-		genes[8] / 14 + 1, -- Cap algo width
+		genes[5] / 31, -- Cap algo flatness
+		genes[6] / 31 * 3.4 - 0.6, -- Cap algo theta
+		genes[7] / 15 / 2 + 1, -- Cap algo width
 	}
 end
 
 function unGetGenomeValues(vals)
 	return {
-		vals[1] / 2, -- Stem height
-		vals[2] - 1, -- Cap radius
-		vals[3] - 1, -- Cap height
-		vals[4] / 2, -- Prim inhibition range
-		vals[5] / 10, -- Prim investment
-		vals[6] * 15, -- Cap algo flatness
-		(vals[7] + math.pi) / math.pi * 7, -- Cap algo theta
-		(vals[8] - 1) * 14, -- Cap algo width
+		round(vals[1] / 2), -- Stem height
+		round(vals[2] - 1), -- Cap radius
+		round(vals[3] - 1), -- Cap height
+		round(vals[4] / 2), -- Prim inhibition range
+		round(vals[5] * 31), -- Cap algo flatness
+		round((vals[6] + 0.6) * 31 / 3.4), -- Cap algo theta
+		round((vals[7] - 1) * 15 * 2), -- Cap algo width
 	}
 end
 
@@ -4441,9 +4456,31 @@ function genomeValuesToGenome(vals)
 	return packFungusGenome(unGetGenomeValues(vals))
 end
 
-function spawnMushroomInTheMiddleOfTheScreen()
-
+function spawnMushroomInTheMiddleOfTheScreen(vals)
+	local s = sim.partCreate(-1, 306, 192, fngs)
+	sim.partProperty(s, "ctype", genomeValuesToGenome(vals))
+	sim.partProperty(s, "tmp", 0x8 + 0x2)
+	sim.partProperty(s, "tmp3", 1800)
 end
+
+function spawnMushroomGrid(w)
+	for i = 0, 31 do
+		for j = 0, 31 do
+			local s = sim.partCreate(-1, i * 20 + 16, j * 12 + 16, fngs)
+			sim.partProperty(s, "ctype", packFungusGenome({0, 8, 9, 5, i, j, w}))
+			sim.partProperty(s, "tmp", 0x8 + 0x2)
+			sim.partProperty(s, "tmp3", 1800)
+		end
+	end
+end
+
+GENE_STEMHEIGHT = 1
+GENE_CAPRADIUS = 2
+GENE_CAPHEIGHT = 3
+GENE_PRIMINVESTMENT = 4
+GENE_CAPALGO_FLATNESS = 5
+GENE_CAPALGO_THETA = 6
+GENE_CAPALGO_WIDTH = 7
 
 elem.property(fngs, "Update", function(i, x, y, s, n)
 	-- Fungus is slow and does not need to update every tick
@@ -4476,9 +4513,11 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					local child = sim.partCreate(p or -1, px, py, fngs)
 					if child >= 0 then
 						if p then
+							sim.partProperty(child, "ctype", genome)
 							sim.partProperty(child, "tmp", 0x8 + 0x0)
 							sim.partProperty(child, "tmp2", reach + 1)
 						else
+							sim.partProperty(child, "ctype", genome)
 							sim.partProperty(child, "tmp", 0x8 + 0x4) -- "Surface" mycelium. Can grow shrooms
 							local angle = math.atan2(px - x, py - y)
 							sim.partProperty(child, "tmp3", (angle / math.pi * 1800) % 3600)
@@ -4494,8 +4533,8 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			if growing then
 				local reach = sim.partProperty(i, "tmp2")
 
-				if reach > stemHeight then
-					local capReach = reach - stemHeight
+				if reach > geneVals[GENE_STEMHEIGHT] then
+					local capReach = reach - geneVals[GENE_STEMHEIGHT]
 					local radius = unweaveFungusRadius(sim.partProperty(i, "tmp3"))
 					local growUp = false
 					local nx, ny
@@ -4513,12 +4552,23 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						ny = y - 1
 					end
 
-					local a, b, c = shroomAlgoParamsToCoefficients(capAlgFlatness, capAlgTheta)
-					local capCurve = shroomCapCurveNormalized((math.abs(radius) + math.abs(nx - x)) / capRadius, a, b, c, capAlgWidth) * capHeight
-					if (capReach + math.abs(ny - y) < capHeight) and (math.abs(radius) + math.abs(nx - x) < capRadius) and capReach + math.abs(ny - y) < capCurve then
+
+					local newRadius = (math.abs(radius) + math.abs(nx - x)) / geneVals[GENE_CAPRADIUS]
+					local newReach = capReach + math.abs(ny - y)
+
+					local upCurve = newRadius ^ 2 * 2 * 1
+
+					local a, b, c, d = shroomAlgoParamsToCoefficients(geneVals[GENE_CAPALGO_FLATNESS], geneVals[GENE_CAPALGO_THETA], geneVals[GENE_CAPALGO_WIDTH])
+					local capCurve = shroomCapCurveScaled(newRadius, a, b, c, d)
+					if 
+						(newReach < geneVals[GENE_CAPHEIGHT] + upCurve) 
+						and (math.abs(radius) + math.abs(nx - x) < geneVals[GENE_CAPRADIUS]) 
+						and newReach < capCurve * geneVals[GENE_CAPHEIGHT] + upCurve
+						and newReach > upCurve then
 						if growUp then
 							local child = sim.partCreate(-1, nx, ny, fngs)
 							if child >= 0 then
+								sim.partProperty(child, "ctype", genome)
 								sim.partProperty(child, "tmp2", reach + 1)
 								sim.partProperty(child, "tmp", 0x8 + 0x2)
 								sim.partProperty(child, "life", 10)
@@ -4529,6 +4579,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						else
 							local child = sim.partCreate(-1, nx, ny, fngs)
 							if child >= 0 then
+								sim.partProperty(child, "ctype", genome)
 								sim.partProperty(child, "tmp2", reach)
 								sim.partProperty(child, "tmp", 0x8 + 0x2)
 								sim.partProperty(child, "life", 10)
@@ -4540,6 +4591,9 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 								end
 							end
 						end
+					else
+						-- Unable to keep growing because of size/shape constraints
+						sim.partProperty(i, "tmp", 0x2)
 					end
 				else
 					local px, py = sim.partPosition(i) -- Exact floating point coordinates
@@ -4547,13 +4601,14 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					local dx, dy = math.sin(angle) + (math.random() - 0.5) * 0.01, math.cos(angle)
 					local child = sim.partCreate(-1, px + dx + 0.5, py + dy + 0.5, fngs)
 					if child >= 0 then
+						sim.partProperty(child, "ctype", genome)
 						sim.partPosition(child, px + dx, py + dy)
 						local changle = math.atan2(dx, dy - 0.05)
 						sim.partProperty(child, "tmp2", reach + 1)
 						sim.partProperty(child, "tmp", 0x8 + 0x2)
 						sim.partProperty(child, "life", 10)
 						sim.partProperty(i, "tmp", 0x2)
-						if reach + 1 > stemHeight then
+						if reach + 1 > geneVals[GENE_STEMHEIGHT] then
 							sim.partProperty(child, "tmp3", 0)
 						else
 							sim.partProperty(child, "tmp3", (changle / math.pi * 1800) % 3600)
@@ -4572,7 +4627,8 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 		else -- Surface mycelium (may form mushrooms)
 			if growing and math.random(1000) == 1 then
 				local canBecomePrim = true
-				local adjFungus = sim.partNeighbours(x, y, primInhibitRange, fngs)
+				geneVals[GENE_PRIMINVESTMENT] = 10 -- TEMP
+				local adjFungus = sim.partNeighbours(x, y, geneVals[GENE_PRIMINVESTMENT], fngs)
 				for j,k in pairs(adjFungus) do
 					local adjTmp = sim.partProperty(k, "tmp")
 					local adjMode = bit.band(adjTmp, 0x7)
@@ -4584,6 +4640,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					end
 				end
 				if canBecomePrim then
+					for i,j in pairs(geneVals) do print(j) end
 					sim.partProperty(i, "tmp", 0x8 + 0x1)
 				end
 			end
