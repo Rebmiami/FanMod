@@ -324,7 +324,7 @@ end
 
 elem.element(trit, elem.element(elem.DEFAULT_PT_HYGN))
 elem.property(trit, "Name", "TRIT")
-elem.property(trit, "Description", "Tritium. Radioactive gas. Can be created by firing neutrons at LITH. Can be fused with DEUT.")
+elem.property(trit, "Description", "Tritium. Radioactive gas. Created by firing neutrons at LITH. Can fuse with DEUT.")
 elem.property(trit, "Colour", 0x055b3f)
 elem.property(trit, "MenuSection", elem.SC_NUCLEAR)
 elem.property(trit, "Properties", elem.TYPE_GAS + elem.PROP_NEUTPASS)
@@ -1307,7 +1307,7 @@ local brokenGraphBurnHealth = 60
 
 elem.element(grph, elem.element(elem.DEFAULT_PT_DMND))
 elem.property(grph, "Name", "GRPH")
-elem.property(grph, "Description", "Graphite. Strong solid. Can withstand extreme conditions and slows radiation. Conducts electricity in straight lines.")
+elem.property(grph, "Description", "Graphite. Strong solid that slows radiation. Conducts electricity in straight lines.")
 elem.property(grph, "Colour", 0x15111D)
 elem.property(grph, "MenuSection", elem.SC_SOLIDS)
 elem.property(grph, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS + elem.PROP_BLACK)
@@ -1827,7 +1827,7 @@ local mLavaNeutralizersCtype = {
 -- tmp2: 0 if normal, 1 if neutralized. Cools down and no longer heats up if neutralized.
 elem.element(melt, elem.element(elem.DEFAULT_PT_SAND))
 elem.property(melt, "Name", "MELT")
-elem.property(melt, "Description", "Melting powder. Rapidly boils water. Activated by cold or lava, causing it to heat up and convert molten materials.")
+elem.property(melt, "Description", "Melting powder. Rapidly boils water. Cold or lava causes it to heat up and convert molten materials.")
 elem.property(melt, "Colour", 0xFBA153)
 elem.property(melt, "MenuSection", elem.SC_POWDERS)
 elem.property(melt, "Properties", elem.TYPE_PART)
@@ -2188,7 +2188,7 @@ local halogenInteractions = {
 -- tmp: Whether "ionized" by lightning/thunder. Causes it to turn everything into PLSM
 elem.element(halo, elem.element(elem.DEFAULT_PT_HYGN))
 elem.property(halo, "Name", "HALO")
-elem.property(halo, "Description", "Halogens. Reacts with alkali metals to produce SALT, kills STKM, chlorinates water, and damages most elements it touches.")
+elem.property(halo, "Description", "Halogens. Reacts with alkali metals to produce SALT, chlorinates water, and damages most elements.")
 elem.property(halo, "Colour", 0xFEC06F)
 elem.property(halo, "MenuSection", elem.SC_GASES)
 elem.property(halo, "Properties", elem.TYPE_GAS + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
@@ -3494,7 +3494,7 @@ end)
 
 elem.element(shot, elem.element(elem.DEFAULT_PT_CNCT))
 elem.property(shot, "Name", "AMMO")
-elem.property(shot, "Description", "Bullet. Damages materials, but must be accelerated to high speeds first.")
+elem.property(shot, "Description", "Bullet. Damages materials when accelerated to high speeds.")
 elem.property(shot, "Colour", 0xFDC43F)
 elem.property(shot, "Collision", 0)
 elem.property(shot, "Loss", 0.99)
@@ -4146,7 +4146,7 @@ local stgmSplitMass = 50
 
 elem.element(stgm, elem.element(elem.DEFAULT_PT_SING))
 elem.property(stgm, "Name", "STGM")
-elem.property(stgm, "Description", "Strange matter. Extremely dense fluid. When heated, converts matter and produces energy, but destabilizes if fed too much.")
+elem.property(stgm, "Description", "Strange matter. When heated, converts matter and produces energy, but destabilizes if fed too much.")
 elem.property(stgm, "Colour", 0xFF5D00)
 elem.property(stgm, "HotAir", -0.01)
 elem.property(stgm, "Advection", 0.01)
@@ -4276,7 +4276,7 @@ local moistSubstrate = {
 	[elem.DEFAULT_PT_WAX] = true,
 	[elem.DEFAULT_PT_CLST] = true,
 }
--- "Dry" substrates include inorganic porous or natural materials. Mycelium can spread through these, but will not gain life.
+-- "Dry" substrates include inorganic porous or natural materials. Mycelium can spread through these, but will gain less life.
 local drySubstrate = {
 	[elem.DEFAULT_PT_DUST] = true,
 	[elem.DEFAULT_PT_SAND] = true,
@@ -4287,28 +4287,33 @@ local drySubstrate = {
 	[elem.DEFAULT_PT_BRCK] = true,
 	[elem.DEFAULT_PT_ROCK] = true,
 	[elem.DEFAULT_PT_COAL] = true,
-	
+	[elem.DEFAULT_PT_INSL] = true,
+
+	-- https://www.ncbi.nlm.nih.gov/pmc/articles/PMC99030/
+	-- The rest are just because they felt right.
+	[elem.DEFAULT_PT_TNT] = true, 
 	[elem.DEFAULT_PT_FUSE] = true,
-	[elem.DEFAULT_PT_TNT] = true,
 	[elem.DEFAULT_PT_IGNC] = true,
 }
 
+-- Yet another overly complicated element. I seem to have a knack for making these
 
 -- Property structure
 -- ctype: Genome.
 -- life: Water. Required to grow mushrooms. If water depletes, decays into dust.
 -- tmp: Mode.
---  0x0: Mycelium
---  0x1: Primordium ("pre-mushroom")
---  0x2: Fruiting body (mushroom)
---  0x3: Hymenium (creates spores)
---  0x4: Surface mycelium
---  0x8: Growing (can be combined with any other mode)
+--  0x00: Mycelium
+--  0x01: Primordium ("pre-mushroom")
+--  0x02: Fruiting body (mushroom)
+--  0x03: Hymenium (creates spores)
+--  0x04: Surface mycelium
+--  0x08: Growing (can be combined with any other mode)
+--  0xF0: Growth timer. Used by mushroom caps.
 -- tmp2: Reach. Used by mushrooms stipes and mycelia
 -- tmp3: Angle or radius, depending on context.
 elem.element(fngs, elem.element(elem.DEFAULT_PT_WOOD))
 elem.property(fngs, "Name", "FNGS")
-elem.property(fngs, "Description", "Fungus. Grows a network of mycelium through organic elements, then grows mushrooms that spread spores.")
+elem.property(fngs, "Description", "Fungus. Grows a mycelium network in organic elements, then grows mushrooms.")
 elem.property(fngs, "Colour", 0xDAD2B4)
 elem.property(fngs, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a clump of new mycelium
@@ -4319,6 +4324,66 @@ elem.property(fngs, "Create", function(i, x, y, t, v)
 	else
 		-- Make no assumptions of your mycelial brethren
 	end
+end)
+
+elem.element(spor, elem.element(elem.DEFAULT_PT_DUST))
+elem.property(spor, "Name", "SPOR")
+elem.property(spor, "Description", "Spores.")
+elem.property(spor, "Colour", 0xDAD2B4)
+elem.property(spor, "Gravity", 0.004)
+elem.property(spor, "Diffusion", 0.2)
+elem.property(spor, "AirDrag", 0.005)
+elem.property(spor, "AirLoss", 0.96)
+elem.property(spor, "Advection", 0.25)
+elem.property(spor, "Loss", 0.92)
+elem.property(spor, "HotAir", 0.0002)
+elem.property(spor, "Weight", 80)
+elem.property(spor, "MenuSection", -1)
+elem.property(spor, "Create", function(i, x, y, t, v)
+	if v == 0 then -- When manually placed, create a random genome
+		sim.partProperty(i, "ctype", math.random(0, 0x7FFFFFFF))
+	else
+		-- Make no assumptions of your fungal sprethren
+	end
+end)
+elem.property(spor, "Update", function(i, x, y, s, n)
+	local adjFungus = sim.partNeighbours(x, y, 1, fngs)
+	local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
+	local p = sim.pmap(px, py)
+	if p then
+		local ptype = sim.partProperty(p, "type")
+		local pStopped = math.abs(sim.partProperty(p, "vx")) < 0.1 and math.abs(sim.partProperty(p, "vy")) < 0.1
+		local moist = moistSubstrate[ptype]
+		local dry = drySubstrate[ptype]
+		if pStopped and (moist or dry) then
+			if #adjFungus > 0 then
+				if math.random(10) == 1 then -- Make shorter mushrooms more viable
+					sim.partKill(i)
+					return
+				end
+			else
+				sim.partChangeType(p, fngs)
+				sim.partProperty(p, "tmp", 0x8 + 0x0)
+				sim.partProperty(p, "life", 6)
+				sim.partProperty(p, "ctype", sim.partProperty(i, "ctype"))
+				sim.partProperty(p, "tmp2", 0)
+				sim.partProperty(p, "tmp4", sim.partProperty(i, "tmp4"))
+				sim.partKill(i)
+				return
+			end
+		end
+	end
+	if math.random(100) == 1 and n == 0 then
+		sim.partKill(i)
+	end
+end)
+
+elem.property(spor, "Graphics", function (i, r, g, b)
+	local colr, colg, colb = r, g, b
+	
+	local pixel_mode = ren.FIRE_BLEND + ren.PMODE_BLEND
+	local firea = 30
+	return 0,pixel_mode,50,colr,colg,colb,firea,colr,colg,colb;
 end)
 
 local defaultGenome = 2090292853
@@ -4339,6 +4404,12 @@ local primInhibitModes = {
 	[0x1] = true,
 	[0x2] = true,
 	[0x3] = true,
+}
+
+local stateLifeSharing = {
+	[0x0] = { [0x0] = true, [0x4] = true, },
+	[0x2] = { [0x2] = true, [0x3] = true, },
+	[0x3] = { [0x2] = true, [0x3] = true, },
 }
 
 -- Even numbers: positive X, odd numbers: negative X. Zero is a special case.
@@ -4363,7 +4434,7 @@ local function sign(num)
     return num > 0 and 1 or (num == 0 and 0 or -1)
 end
 
-shroomCurveDerivativeSolutions = {
+local shroomCurveDerivativeSolutions = {
 	function(a, b, c)
 		return math.sqrt((-(math.sqrt(b ^ 2 - 3 * a * c) + b) / a) / 3)
 	end,
@@ -4372,7 +4443,7 @@ shroomCurveDerivativeSolutions = {
 	end
 }
 
-function shroomAlgoParamsToCoefficients(f, t, w)
+local function shroomAlgoParamsToCoefficients(f, t, w)
 	return 
 		f + 0.2, 
 		(1 - f) * math.cos(t), 
@@ -4380,11 +4451,11 @@ function shroomAlgoParamsToCoefficients(f, t, w)
 		w - f / 2 + ((1 - f) * math.sqrt(math.abs(t - 0.5))) / 5
 end
 
-function shroomCapCurve(x, a, b, c)
+local function shroomCapCurve(x, a, b, c)
 	return -(a * (x ^ 6) + b * (x ^ 4) + c * (x ^ 2))
 end
 
-function nanCheck(num)
+local function nanCheck(num)
 	if num ~= num then 
 		return -math.huge
 	else 
@@ -4392,67 +4463,74 @@ function nanCheck(num)
 	end
 end
 
-function shroomCapCurveMaximum(a, b, c)
+local function shroomCapCurveMaximum(a, b, c)
 	return math.max(
 		nanCheck(shroomCapCurve(shroomCurveDerivativeSolutions[1](a, b, c), a, b, c)), 
 		nanCheck(shroomCapCurve(shroomCurveDerivativeSolutions[2](a, b, c), a, b, c)), 
 		shroomCapCurve(0, a, b, c))
 end
 
-function shroomCapCurveScaled(x, a, b, c, d)
-	-- print(x, a, b, c, d)
+local function shroomCapCurveScaled(x, a, b, c, d)
 	return (shroomCapCurve(x * d, a, b, c) - shroomCapCurve(d, a, b, c)) / 
 		(shroomCapCurveMaximum(a, b, c) - shroomCapCurve(d, a, b, c))
 end
 
-function unpackFungusGenome(genome)
+local function unpackFungusGenome(genome)
 	return {
 		bit.band(genome, 0x0000000F) / 0x00000001, -- Stem height
 		bit.band(genome, 0x000000F0) / 0x00000010, -- Cap radius
 		bit.band(genome, 0x00000F00) / 0x00000100, -- Cap height
-		bit.band(genome, 0x0000F000) / 0x00001000, -- Prim inhibition range
+		bit.band(genome, 0x00007000) / 0x00001000, -- Prim inhibition range
+
+		bit.band(genome, 0x00018000) / 0x00008000, -- Cap bottom shape
 		bit.band(genome, 0x003E0000) / 0x00020000, -- Cap algo flatness
 		bit.band(genome, 0x07C00000) / 0x00400000, -- Cap algo theta
 		bit.band(genome, 0x78000000) / 0x08000000, -- Cap algo width
 	}
 end
 
-function packFungusGenome(genes)
+local function packFungusGenome(genes)
 	return 
 		bit.band(round(genes[1]) * 0x00000001, 0x0000000F) + -- Stem height
 		bit.band(round(genes[2]) * 0x00000010, 0x000000F0) + -- Cap radius
 		bit.band(round(genes[3]) * 0x00000100, 0x00000F00) + -- Cap height
-		bit.band(round(genes[4]) * 0x00001000, 0x0000F000) + -- Prim inhibition range
-		bit.band(round(genes[5]) * 0x00020000, 0x003E0000) + -- Cap algo flatness
-		bit.band(round(genes[6]) * 0x00400000, 0x07C00000) + -- Cap algo theta
-		bit.band(round(genes[7]) * 0x08000000, 0x78000000)   -- Cap algo width
+		bit.band(round(genes[4]) * 0x00001000, 0x00007000) + -- Prim inhibition range
+
+		bit.band(round(genes[5]) * 0x00008000, 0x00018000) + -- Cap bottom shape
+		bit.band(round(genes[6]) * 0x00020000, 0x003E0000) + -- Cap algo flatness
+		bit.band(round(genes[7]) * 0x00400000, 0x07C00000) + -- Cap algo theta
+		bit.band(round(genes[8]) * 0x08000000, 0x78000000)   -- Cap algo width
 end
 
-function getGenomeValues(genes)
+local function getGenomeValues(genes)
 	return {
 		genes[1] * 2, -- Stem height
 		genes[2] + 1, -- Cap radius
 		genes[3] + 1, -- Cap height
-		genes[4] * 2, -- Prim inhibition range
-		genes[5] / 31, -- Cap algo flatness
-		genes[6] / 31 * 3.4 - 0.6, -- Cap algo theta
-		genes[7] / 15 / 2 + 1, -- Cap algo width
+		genes[4], -- Prim inhibition range
+		
+		genes[5], -- Cap bottom shape
+		genes[6] / 31, -- Cap algo flatness
+		genes[7] / 31 * 3.4 - 0.6, -- Cap algo theta
+		genes[8] / 15 / 2 + 1, -- Cap algo width
 	}
 end
 
-function unGetGenomeValues(vals)
+local function unGetGenomeValues(vals)
 	return {
 		round(vals[1] / 2), -- Stem height
 		round(vals[2] - 1), -- Cap radius
 		round(vals[3] - 1), -- Cap height
-		round(vals[4] / 2), -- Prim inhibition range
-		round(vals[5] * 31), -- Cap algo flatness
-		round((vals[6] + 0.6) * 31 / 3.4), -- Cap algo theta
-		round((vals[7] - 1) * 15 * 2), -- Cap algo width
+		round(vals[4]), -- Prim inhibition range
+
+		round(vals[5]), -- Cap bottom shape
+		round(vals[6] * 31), -- Cap algo flatness
+		round((vals[7] + 0.6) * 31 / 3.4), -- Cap algo theta
+		round((vals[8] - 1) * 15 * 2), -- Cap algo width
 	}
 end
 
-function genomeValuesToGenome(vals)
+local function genomeValuesToGenome(vals)
 	return packFungusGenome(unGetGenomeValues(vals))
 end
 
@@ -4474,27 +4552,48 @@ function spawnMushroomGrid(w)
 	end
 end
 
-GENE_STEMHEIGHT = 1
-GENE_CAPRADIUS = 2
-GENE_CAPHEIGHT = 3
-GENE_PRIMINVESTMENT = 4
-GENE_CAPALGO_FLATNESS = 5
-GENE_CAPALGO_THETA = 6
-GENE_CAPALGO_WIDTH = 7
+function debugMushroomGeneVals()
+	local underMouse = sim.pmap(sim.adjustCoords(tpt.mousex, tpt.mousey))
+	local genome = sim.partProperty(underMouse, "ctype")
+	local vals = getGenomeValues(unpackFungusGenome(genome))
+	for i,j in pairs(vals) do
+		print(j)
+	end
+end
+
+local GENE_STEMHEIGHT = 1
+local GENE_CAPRADIUS = 2
+local GENE_CAPHEIGHT = 3
+local GENE_PRIMINVESTMENT = 4
+local GENE_CAPBOTTOMSHAPE = 5
+local GENE_CAPALGO_FLATNESS = 6
+local GENE_CAPALGO_THETA = 7
+local GENE_CAPALGO_WIDTH = 8
 
 elem.property(fngs, "Update", function(i, x, y, s, n)
 	-- Fungus is slow and does not need to update every tick
 	if math.random(10) == 1 then
+		local water = sim.partProperty(i, "life")
+
 		local genome = sim.partProperty(i, "ctype")
 		local tmp = sim.partProperty(i, "tmp")
 		local mode = bit.band(tmp, 0x7)
 		local growing = bit.band(tmp, 0x8) ~= 0
+		local growTimer = bit.band(tmp, 0xF0) / 0x10
+		if growTimer > 0 then
+			growTimer = growTimer - 1
+			sim.partProperty(i, "tmp", 
+				bit.bor(
+					bit.band(tmp, 0xF),
+					growTimer * 0x10
+				))
+		end
 
 		local genes = unpackFungusGenome(genome)
 		local geneVals = getGenomeValues(genes)
 
 		if mode == 0 then -- Mycelium (spreads through substrate to gain resources)
-			if growing then
+			if growing and water > 5 then
 				local reach = sim.partProperty(i, "tmp2")
 
 				local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
@@ -4508,7 +4607,10 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 				local moist = moistSubstrate[ptype]
 				local dry = drySubstrate[ptype]
 
-				if #adjFungus < 1 and (not p or moist or dry) and reach < 20 then
+				-- Changing to < 1 prevents mycelia from merging together.
+				-- This makes most species much less viable but also causes interesting shapes in the mycelial network.
+				-- If you're reading this, try changing it and see what happens to mycelium growth.
+				if #adjFungus < 2 and (not p or moist or dry) and reach < 20 then
 					-- if p then sim.partKill(p) end
 					local child = sim.partCreate(p or -1, px, py, fngs)
 					if child >= 0 then
@@ -4520,35 +4622,57 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 							sim.partProperty(child, "ctype", genome)
 							sim.partProperty(child, "tmp", 0x8 + 0x4) -- "Surface" mycelium. Can grow shrooms
 							local angle = math.atan2(px - x, py - y)
-							sim.partProperty(child, "tmp3", (angle / math.pi * 1800) % 3600)
+							sim.partProperty(child, "tmp3", (angle / math.pi * 1800 + (math.random() - 0.5) * 450) % 3600)
 						end
-						sim.partProperty(child, "life", 10)
+						sim.partProperty(child, "life", 8 + (moist and 5 or 0))
+						water = water - 3
 					end
 				end
 			end
 		elseif mode == 1 then -- Primordium (pre-mushroom, absorbs resources until ready to grow)
-			sim.partProperty(i, "tmp", 0x8 + 0x2)
+
+			if water > 4 * (geneVals[GENE_PRIMINVESTMENT] + 1) ^ 2 then
+				sim.partProperty(i, "tmp", 0x8 + 0x2)
+				water = water * 40 -- Water has a very different value inside a mushroom
+			else
+				-- Thirsty little fungus
+				local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+				if p and sim.partProperty(p, "type") == fngs then
+					local pWater = sim.partProperty(p, "life")
+					if pWater > 2 then
+						sim.partProperty(p, "life", 3)
+						water = pWater + water - 3
+					end
+				end
+			end
 
 		elseif mode == 2 then -- Mushroom (grows from the mycelium, develops gills when mature)
-			if growing then
+			if growing and water > 20 then
 				local reach = sim.partProperty(i, "tmp2")
 
 				if reach > geneVals[GENE_STEMHEIGHT] then
+					-- Cap growth
 					local capReach = reach - geneVals[GENE_STEMHEIGHT]
 					local radius = unweaveFungusRadius(sim.partProperty(i, "tmp3"))
 					local growUp = false
-					local nx, ny
+					local nx, ny = x, y
 					if radius == 0 then
-						nx = x + math.random(2) * 2 - 3
-						ny = y
-						growUp = sim.pmap(x + 1, ny) and sim.pmap(x - 1, ny)
+						local adj1, adj2 = sim.pmap(x + 1, ny), sim.pmap(x - 1, ny)
+						if adj1 and adj2 then
+							growUp = true
+						elseif adj1 and not adj2 then
+							nx = x - 1
+						elseif adj2 then
+							nx = x + 1
+						else
+							nx = x + math.random(2) * 2 - 3
+						end
+						-- growUp = sim.pmap(x + 1, ny) and sim.pmap(x - 1, ny)
 					else
 						nx = x + sign(radius)
-						ny = y
 						growUp = sim.pmap(nx, ny)
 					end
 					if growUp then
-						nx = x
 						ny = y - 1
 					end
 
@@ -4556,10 +4680,12 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					local newRadius = (math.abs(radius) + math.abs(nx - x)) / geneVals[GENE_CAPRADIUS]
 					local newReach = capReach + math.abs(ny - y)
 
-					local upCurve = newRadius ^ 2 * 2 * 1
+					local upCurve = newRadius ^ 2 * 2 * geneVals[GENE_CAPBOTTOMSHAPE]
 
 					local a, b, c, d = shroomAlgoParamsToCoefficients(geneVals[GENE_CAPALGO_FLATNESS], geneVals[GENE_CAPALGO_THETA], geneVals[GENE_CAPALGO_WIDTH])
 					local capCurve = shroomCapCurveScaled(newRadius, a, b, c, d)
+					-- print(capCurve)
+					local stopGrowing = false
 					if 
 						(newReach < geneVals[GENE_CAPHEIGHT] + upCurve) 
 						and (math.abs(radius) + math.abs(nx - x) < geneVals[GENE_CAPRADIUS]) 
@@ -4570,19 +4696,21 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 							if child >= 0 then
 								sim.partProperty(child, "ctype", genome)
 								sim.partProperty(child, "tmp2", reach + 1)
-								sim.partProperty(child, "tmp", 0x8 + 0x2)
-								sim.partProperty(child, "life", 10)
+								sim.partProperty(child, "tmp", 0xF0 + 0x8 + 0x2)
+								sim.partProperty(child, "life", water - 10)
+								water = 10
 
 								sim.partProperty(child, "tmp3", weaveFungusRadius(radius))
 							end
-							sim.partProperty(i, "tmp", 0x2)
+							stopGrowing = true
 						else
 							local child = sim.partCreate(-1, nx, ny, fngs)
 							if child >= 0 then
 								sim.partProperty(child, "ctype", genome)
 								sim.partProperty(child, "tmp2", reach)
-								sim.partProperty(child, "tmp", 0x8 + 0x2)
-								sim.partProperty(child, "life", 10)
+								sim.partProperty(child, "tmp", 0xF0 + 0x8 + 0x2)
+								sim.partProperty(child, "life", water - 10)
+								water = 10
 
 								if radius == 0 then
 									sim.partProperty(child, "tmp3", weaveFungusRadius(nx - x))
@@ -4593,9 +4721,20 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						end
 					else
 						-- Unable to keep growing because of size/shape constraints
-						sim.partProperty(i, "tmp", 0x2)
+						stopGrowing = true
+					end
+
+					if stopGrowing then 
+						-- Small shrooms are purely spore-bearing and very delicate
+						local tinyShroom = (geneVals[GENE_CAPHEIGHT] < 3) or geneVals[GENE_CAPRADIUS] < 2
+						if tinyShroom or (capReach * 1.5 < capCurve * geneVals[GENE_CAPHEIGHT] + upCurve) then
+							sim.partProperty(i, "tmp", 0xF0 + 0x3) -- Hymenium
+						else
+							sim.partProperty(i, "tmp", 0xF0 + 0x2) -- Flesh
+						end
 					end
 				else
+					-- Stipe (stem) growth
 					local px, py = sim.partPosition(i) -- Exact floating point coordinates
 					local angle = sim.partProperty(i, "tmp3") * math.pi / 1800
 					local dx, dy = math.sin(angle) + (math.random() - 0.5) * 0.01, math.cos(angle)
@@ -4605,8 +4744,11 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						sim.partPosition(child, px + dx, py + dy)
 						local changle = math.atan2(dx, dy - 0.05)
 						sim.partProperty(child, "tmp2", reach + 1)
-						sim.partProperty(child, "tmp", 0x8 + 0x2)
-						sim.partProperty(child, "life", 10)
+						sim.partProperty(child, "tmp", 0xF0 + 0x8 + 0x2)
+
+						sim.partProperty(child, "life", water - 15)
+						water = 15
+
 						sim.partProperty(i, "tmp", 0x2)
 						if reach + 1 > geneVals[GENE_STEMHEIGHT] then
 							sim.partProperty(child, "tmp3", 0)
@@ -4622,13 +4764,51 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					end
 				end
 			end
+			-- Mushrooms lose water faster than mycelium
+			-- Don't punish "overinvestment" before resources have been distributed and the cap is fully built
+			if (math.random(50) == 1 or math.random(water) > 30) and growTimer == 0 then
+				water = water - 1
+				-- Ruthlessly punish overinvestment of resources into small mushrooms
+				if not growing and water > 20 then
+					water = water * 0.5 - 10
+				end
+			end
 		elseif mode == 3 then -- Hymenium (creates spores)
-
+			if water > 0 and math.random(20) == 1 then
+				local sx, sy = x, y
+				local sp = sim.pmap(sx, sy)
+				local stype
+				if sp then
+					stype = sim.partProperty(sp, "type")
+				end
+				local limit = 40 -- Prevent infinite loops
+				while (sp and stype == fngs) do
+					sx, sy = sx + (math.random() - 0.5) * 0.1, sy + 1
+					sp = sim.pmap(sx, sy)
+					if sp then
+						stype = sim.partProperty(sp, "type")
+					end
+					limit = limit - 1
+					if limit <= 0 then
+						break
+					end
+				end
+				if sp then
+					-- Do nothing and Cry
+				else
+					local spore = sim.partCreate(-1, sx, sy, spor)
+					if spore >= 0 then
+						sim.partProperty(spore, "ctype", genome)
+					end
+					water = water - 7
+				end
+			end
 		else -- Surface mycelium (may form mushrooms)
-			if growing and math.random(1000) == 1 then
+			if growing and math.random(500) == 1 then
 				local canBecomePrim = true
-				geneVals[GENE_PRIMINVESTMENT] = 10 -- TEMP
-				local adjFungus = sim.partNeighbours(x, y, geneVals[GENE_PRIMINVESTMENT], fngs)
+				-- geneVals[GENE_PRIMINVESTMENT] = 10 -- TEMP
+				-- Fungi that invest more into each prim should create fewer prims
+				local adjFungus = sim.partNeighbours(x, y, geneVals[GENE_PRIMINVESTMENT] * 2, fngs)
 				for j,k in pairs(adjFungus) do
 					local adjTmp = sim.partProperty(k, "tmp")
 					local adjMode = bit.band(adjTmp, 0x7)
@@ -4640,12 +4820,62 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					end
 				end
 				if canBecomePrim then
-					for i,j in pairs(geneVals) do print(j) end
+					-- for i,j in pairs(geneVals) do print(j) end
 					sim.partProperty(i, "tmp", 0x8 + 0x1)
 				end
 			end
 		end
+
+		-- local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+
+		local toShare = sim.partNeighbours(x, y, 1, fngs)
+		for j,p in pairs(toShare) do
+			local pMode = bit.band(sim.partProperty(p, "tmp"), 0x7)
+			if stateLifeSharing[mode] and stateLifeSharing[mode][pMode] then
+				local reach = sim.partProperty(i, "tmp2")
+				if mode ~= 0x2 or reach > geneVals[GENE_STEMHEIGHT] then -- Stems shouldn't hog all the resources
+					local pWater = sim.partProperty(p, "life")
+					local waterDiff = math.floor((water - pWater) / 2)
+					water = water - waterDiff
+					sim.partProperty(p, "life", pWater + waterDiff)
+				end 
+			end
+		end
+
+
+		-- Randomly dehydrate
+		if math.random(100) == 1 then
+			water = water - 1
+		end
+
+		sim.partProperty(i, "life", water)
+		if water <= 0 then
+			sim.partKill(i)
+			if mode == 0x0 and math.random(10) ~= 1 then -- Dry substrate cannot be used forever
+				sim.partCreate(-1, x, y, elem.DEFAULT_PT_DUST)
+			end
+		end
 	end
+end)
+
+elem.property(fngs, "Graphics", function (i, r, g, b)
+	local x, y = sim.partPosition(i)
+	local water = sim.partProperty(i, "life")
+
+	local genome = sim.partProperty(i, "ctype")
+	local tmp = sim.partProperty(i, "tmp")
+	local mode = bit.band(tmp, 0x7)
+
+	local colr, colg, colb = r, g, b
+
+	if mode == 1 then -- Primordia appear as small white blobs
+		graphics.fillCircle(x, y, 1, 1, 255, 255, 255)
+		colr, colg, colb = 255, 255, 255
+	end
+	
+	local pixel_mode = ren.FIRE_BLEND + ren.PMODE_FLAT
+	local firea = 0
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
