@@ -2296,6 +2296,13 @@ elem.property(fhal, "HighTemperature", 112.57)
 elem.property(fhal, "HighTemperatureTransition", halo)
 elem.property(fhal, "HotAir", -0.0004)
 
+local trtwKill = {
+	[elem.DEFAULT_PT_PLNT] = true,
+	[elem.DEFAULT_PT_YEST] = true,
+	[fngs] = true,
+	[spor] = true,
+}
+
 local trtwDissolve = {
 	[elem.DEFAULT_PT_ROCK] = true,
 	[elem.DEFAULT_PT_BRCK] = true,
@@ -2332,7 +2339,7 @@ elem.property(trtw, "Update", function(i, x, y, s, n)
 			sim.partChangeType(r, trtw)
 		end
 
-		if type == elem.DEFAULT_PT_PLNT then
+		if trtwKill[type] then
 			sim.partKill(r)
 		end
 	end
