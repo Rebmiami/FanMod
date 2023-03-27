@@ -4303,6 +4303,24 @@ local drySubstrate = {
 	[elem.DEFAULT_PT_IGNC] = true,
 }
 
+-- Mushrooms can pierce certain elements if they're blocking their growth.
+-- These cannot be penetrated
+local shroomImpenetrable = {
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_CLNE] = true,
+	[elem.DEFAULT_PT_VOID] = true,
+	[elem.DEFAULT_PT_CONV] = true,
+	[elem.DEFAULT_PT_VACU] = true,
+	[elem.DEFAULT_PT_VENT] = true,
+	[elem.DEFAULT_PT_NBHL] = true,
+	[elem.DEFAULT_PT_NWHL] = true, -- Narwhals
+	[elem.DEFAULT_PT_PRTI] = true,
+	[elem.DEFAULT_PT_PRTO] = true,
+	[elem.DEFAULT_PT_VIBR] = true,
+	[copp] = true,
+	[fngs] = true,
+}
+
 -- Yet another overly complicated element. I seem to have a knack for making these
 
 -- Property structure
@@ -4331,6 +4349,12 @@ elem.property(fngs, "Create", function(i, x, y, t, v)
 	else
 		-- Make no assumptions of your mycelial brethren
 	end
+end)
+elem.property(fngs, "CreateAllowed", function(p, x, y, t)
+	if (p == -1 or p >= 0) and #sim.partNeighbours(x, y, 2, copp) > 0 then
+		return false
+	end
+	return true
 end)
 
 elem.element(spor, elem.element(elem.DEFAULT_PT_DUST))
@@ -4382,6 +4406,11 @@ elem.property(spor, "Update", function(i, x, y, s, n)
 	end
 	if math.random(100) == 1 and n == 0 then
 		sim.partKill(i)
+		return
+	end
+	if #sim.partNeighbours(x, y, 2, copp) > 0 then
+		sim.partKill(i)
+		return
 	end
 end)
 
@@ -4636,6 +4665,15 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					end
 				end
 			end
+			local wx, wy = x + math.random(-1, 1), y + math.random(-1, 1)
+			local w = sim.pmap(wx, wy)
+			if w then
+				local wtype = sim.partProperty(w, "type")
+				if wtype == elem.DEFAULT_PT_WATR then
+					sim.partKill(w)
+					water = water + 10
+				end
+			end
 		elseif mode == 1 then -- Primordium (pre-mushroom, absorbs resources until ready to grow)
 
 			if water > 4 * (geneVals[GENE_PRIMINVESTMENT] + 1) ^ 2 then
@@ -4644,7 +4682,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			else
 				-- Thirsty little fungus
 				local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
-				if p and sim.partProperty(p, "type") == fngs then
+				if p and sim.partProperty(p, "type") == fngs and p ~= i then
 					local pWater = sim.partProperty(p, "life")
 					if pWater > 2 then
 						sim.partProperty(p, "life", 3)
@@ -4763,11 +4801,18 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 							sim.partProperty(child, "tmp3", (changle / math.pi * 1800) % 3600)
 						end
 					else
-						--local tp = sim.pmap(px + dx, py + dy)
-						--if not tp then
-						if math.floor(px + dx + 0.5) == x and math.floor(py + dy + 0.5) == y then
+						local obstacle = sim.pmap(px + dx + 0.5, py + dy + 0.5)
+						
+						-- Mushrooms grow with lots of force, some can even break through asphalt
+						if obstacle and not shroomImpenetrable[sim.partProperty(obstacle, "type")] and math.random(50) == 1 then
+							sim.partKill(obstacle)
+							water = water - 100
+						elseif math.floor(px + dx + 0.5) == x and math.floor(py + dy + 0.5) == y then
 							sim.partPosition(i, px + dx, py + dy)
 						end
+						--local tp = sim.pmap(px + dx, py + dy)
+						--if not tp then
+						
 					end
 				end
 			end
