@@ -1011,7 +1011,7 @@ elem.property(ffld, "Update", function(i, x, y, s, n)
 
 			for k,d in pairs(nearby) do
 				local px, py = sim.partPosition(d)
-				if not px or not py then print(k, d, px, py) end
+				-- if not px or not py then print(k, d, px, py) end
 				if isInsideFieldShape(range, shape, px - x, py - y) and not shouldIgnore(sim.partProperty(d, "type"), ctype, action) then
 					shieldActionFunctions[action](d, x, y)
 					any = true
@@ -1856,7 +1856,7 @@ local mLavaNeutralizersCtype = {
 -- tmp2: 0 if normal, 1 if neutralized. Cools down and no longer heats up if neutralized.
 elem.element(melt, elem.element(elem.DEFAULT_PT_SAND))
 elem.property(melt, "Name", "MELT")
-elem.property(melt, "Description", "Melting powder. Rapidly boils water. Cold or lava causes it to heat up and convert molten materials.")
+elem.property(melt, "Description", "Melting powder. Rapidly boils water. When melted, constantly heats up and converts molten materials.")
 elem.property(melt, "Colour", 0xFBA153)
 elem.property(melt, "MenuSection", elem.SC_POWDERS)
 elem.property(melt, "Properties", elem.TYPE_PART)
@@ -2217,7 +2217,7 @@ local halogenInteractions = {
 -- tmp: Whether "ionized" by lightning/thunder. Causes it to turn everything into PLSM
 elem.element(halo, elem.element(elem.DEFAULT_PT_HYGN))
 elem.property(halo, "Name", "HALO")
-elem.property(halo, "Description", "Halogens. Reacts with alkali metals to produce SALT, chlorinates water, and damages most elements.")
+elem.property(halo, "Description", "Halogens. Very reactive. Turns alkali metals into SALT and chlorinates water.")
 elem.property(halo, "Colour", 0xFEC06F)
 elem.property(halo, "MenuSection", elem.SC_GASES)
 elem.property(halo, "Properties", elem.TYPE_GAS + elem.PROP_DEADLY + elem.PROP_LIFE_DEC)
@@ -2376,7 +2376,7 @@ end)
 
 elem.element(flor, elem.element(elem.DEFAULT_PT_QRTZ))
 elem.property(flor, "Name", "FLOR")
-elem.property(flor, "Description", "Fluorite. Can be refined into HALO. Interacts with light in interesting ways. Good for your chakras.")
+elem.property(flor, "Description", "Fluorite. Can be refined into HALO. Fluoresces in blue light. Good for your chakras.")
 elem.property(flor, "Colour", 0xBE6FB2)
 
 elem.property(flor, "Create", function(i, x, y, t, v)
@@ -2822,7 +2822,7 @@ event.register(event.mousedown, function(x, y, button)
 	if button == 2 then
 		local ax, ay = sim.adjustCoords(x, y)
 		local mp = sim.pmap(ax, ay)
-		if mp then
+		if mp and sim.partProperty(mp, "type") == no32 then
 			nobiliBrushState = sim.partProperty(mp, "life")
 		end
 	end
@@ -3700,7 +3700,7 @@ end
 --  0b100 - Reset all properties except ctype. (disables ctype reversion)
 elem.element(rset, elem.element(elem.DEFAULT_PT_CONV))
 elem.property(rset, "Name", "RSET")
-elem.property(rset, "Description", "Resetter. Resets the properties of particles to default on contact. Shift-click to configure.")
+elem.property(rset, "Description", "Resetter. Resets particle properties to default on contact. Shift-click to configure.")
 elem.property(rset, "Colour", 0xFE31AF)
 elem.property(rset, "MenuSection", elem.SC_SPECIAL)
 elem.property(rset, "Update", function(i, x, y, s, n)
@@ -3820,13 +3820,39 @@ event.register(event.aftersim, function()
 	end
 end)
 
+local fuelNonstick = {
+	[fuel] = true,
+	[elem.DEFAULT_PT_DMND] = true,
+	[elem.DEFAULT_PT_CLNE] = true,
+	[lncr] = true,
+	[elem.DEFAULT_PT_VOID] = true,
+	[elem.DEFAULT_PT_CONV] = true,
+	[elem.DEFAULT_PT_VACU] = true,
+	[elem.DEFAULT_PT_VENT] = true,
+	[elem.DEFAULT_PT_NBHL] = true,
+	[elem.DEFAULT_PT_NWHL] = true,
+	[elem.DEFAULT_PT_PRTI] = true,
+	[elem.DEFAULT_PT_PRTO] = true,
+	[elem.DEFAULT_PT_VIBR] = true,
+	[elem.DEFAULT_PT_PIPE] = true,
+	[elem.DEFAULT_PT_PPIP] = true,
+	[elem.DEFAULT_PT_SAWD] = true,
+	[elem.DEFAULT_PT_GOLD] = true,
+	[elem.DEFAULT_PT_PTNM] = true,
+	[copp] = true,
+	[elem.DEFAULT_PT_DESL] = true,
+	[elem.DEFAULT_PT_FSEP] = true,
+}
+
+elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
+
 elem.element(fuel, elem.element(elem.DEFAULT_PT_GEL))
 elem.property(fuel, "Name", "FUEL")
-elem.property(fuel, "Description", "Rocket fuel. Sticky napalm-like fluid that burns with extreme heat and pressure. Hard to ignite.")
+elem.property(fuel, "Description", "Rocket fuel. Burns with high pressure and heat. Hard to ignite.")
 elem.property(fuel, "Colour", 0x650B00)
 elem.property(fuel, "MenuSection", elem.SC_EXPLOSIVE)
 elem.property(fuel, "Advection", 0.01)
-elem.property(fuel, "Weight", 14)
+elem.property(fuel, "Weight", 19)
 elem.property(fuel, "HotAir", -0.0002)
 elem.property(fuel, "Properties", elem.TYPE_LIQUID + elem.PROP_LIFE_DEC)
 elem.property(fuel, "Update", function(i, x, y, s, n)
@@ -3847,8 +3873,13 @@ elem.property(fuel, "Update", function(i, x, y, s, n)
 		end
 	else
 		if s ~= n then
-			sim.partProperty(i, "vx", 0) 
-			sim.partProperty(i, "vy", 0)
+			for o,p in pairs(sim.partNeighbours(x, y, 1)) do
+				if not fuelNonstick[sim.partProperty(p, "type")] then
+					sim.partProperty(i, "vx", 0) 
+					sim.partProperty(i, "vy", 0)
+					break
+				end
+			end
 		end
 
 		if s > 0 then
@@ -3894,6 +3925,8 @@ local function copperInstAble(x, y)
 	return copperInstAbleID(p)
 end
 
+local jacob1SprkInhibitor = false
+
 local function copperFloodFill(x, y)
 	local bitmap = {}
 	for i = 0, sim.XRES - 1 do
@@ -3916,6 +3949,7 @@ local function copperFloodFill(x, y)
 	 		x2 = x2 + 1
 	 	end
 	 	for i = x1, x2 do
+			jacob1SprkInhibitor = true
 	 		sim.partCreate(-1, i, y1, elem.DEFAULT_PT_SPRK)
 	 		bitmap[i][y1] = false
 	 	end
@@ -3998,25 +4032,55 @@ local viruses = {
 	[elem.DEFAULT_PT_VRSG] = true,
 	[elem.DEFAULT_PT_VRSS] = true,
 }
-elem.property(copp, "ChangeType", function(i, x, y, t1, t2)
-	if t2 == elem.DEFAULT_PT_SPRK then
-		if sim.partProperty(i, "temp") < copperSuperconductTemp then
-			copperFloodFill(x, y)
+
+-- This mod handles SPRK a bit differently
+if tpt.version.jacob1s_mod then
+	elem.property(elem.DEFAULT_PT_SPRK, "ChangeType", function(i, x, y, t1, t2)
+		if jacob1SprkInhibitor then jacob1SprkInhibitor = false return end
+		if t1 == copp then
+			-- Superconductance
+			if sim.partProperty(i, "temp") < copperSuperconductTemp then
+				copperFloodFill(x, y)
+			end
+			local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
+			for j,k in pairs(acid) do
+				sim.partChangeType(k, cuso)
+				sim.partProperty(k, "life", 0)
+				sim.partProperty(k, "tmp", 1) -- Hydrate
+			end
+			local cuso = sim.partNeighbours(x, y, 1, cuso)
+			for j,k in pairs(cuso) do
+				sim.partProperty(k, "life", 30) -- Growify
+			end
+		elseif t2 == elem.DEFAULT_PT_LAVA then
+			sim.partProperty(i, "tmp", 0) -- Remove oxidization when melted
 		end
-		local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
-		for j,k in pairs(acid) do
-			sim.partChangeType(k, cuso)
-			sim.partProperty(k, "life", 0)
-			sim.partProperty(k, "tmp", 1) -- Hydrate
+	end)
+else
+	elem.property(copp, "ChangeType", function(i, x, y, t1, t2)
+		-- print(i, x, y, t1, t2)
+		if t2 == elem.DEFAULT_PT_SPRK then
+			-- Superconductance
+			if sim.partProperty(i, "temp") < copperSuperconductTemp then
+				copperFloodFill(x, y)
+			end
+			local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
+			for j,k in pairs(acid) do
+				sim.partChangeType(k, cuso)
+				sim.partProperty(k, "life", 0)
+				sim.partProperty(k, "tmp", 1) -- Hydrate
+			end
+			local cuso = sim.partNeighbours(x, y, 1, cuso)
+			for j,k in pairs(cuso) do
+				sim.partProperty(k, "life", 30) -- Growify
+			end
+		elseif t2 == elem.DEFAULT_PT_LAVA then
+			sim.partProperty(i, "tmp", 0) -- Remove oxidization when melted
 		end
-		local cuso = sim.partNeighbours(x, y, 1, cuso)
-		for j,k in pairs(cuso) do
-			sim.partProperty(k, "life", 30) -- Growify
-		end
-	elseif t2 == elem.DEFAULT_PT_LAVA then
-		sim.partProperty(i, "tmp", 0) -- Remove oxidization when melted
-	end
-end)
+	end)
+end
+
+
 
 elem.property(copp, "Graphics", function (i, r, g, b)
 	pr, pg, pb = 87, 178, 90 -- Patina RGB
@@ -4182,7 +4246,7 @@ local stgmSplitMass = 50
 
 elem.element(stgm, elem.element(elem.DEFAULT_PT_SING))
 elem.property(stgm, "Name", "STGM")
-elem.property(stgm, "Description", "Strange matter. When heated, converts matter and produces energy, but destabilizes if fed too much.")
+elem.property(stgm, "Description", "Strange matter. When heated, converts matter and produces energy, but destabilizes if over-fueled.")
 elem.property(stgm, "Colour", 0xFF5D00)
 elem.property(stgm, "HotAir", -0.01)
 elem.property(stgm, "Advection", 0.01)
@@ -4190,7 +4254,7 @@ elem.property(stgm, "AirDrag", 0)
 elem.property(stgm, "Loss", 0.99)
 elem.property(stgm, "Gravity", 0.01)
 elem.property(stgm, "Falldown", 2)
-elem.property(stgm, "Properties", elem.TYPE_LIQUID)
+elem.property(stgm, "Properties", elem.TYPE_LIQUID + elem.PROP_NEUTPASS)
 elem.property(stgm, "Weight", 99)
 elem.property(stgm, "Create", function(i, x, y, t, v)
 	sim.partProperty(i, "tmp", stgmMaxStability)
@@ -4202,16 +4266,28 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 	local mass = sim.partProperty(i, "ctype")
 	local stability = sim.partProperty(i, "tmp")
 	if s ~= n then
-		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
-		if p and sim.partProperty(p, "temp") > 1500 then
-			local ptype = sim.partProperty(p, "type")
-			if not stgmImmune[ptype] and elem.property(ptype, "HeatConduct") > 0 then
-				fuel = fuel + 300
-				mass = mass + 1
-				stability = stability + 1
-				sim.partKill(p)
-				if fuel > 3000 then
-					stability = stability - 10
+		local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
+		local p = sim.pmap(px, py)
+		-- if p and not sim.partProperty(p, "temp") then
+		-- 	tpt.set_pause(1)
+		-- 	print(i, p, px, py, x, y)
+		-- 	print(elem.property(allPartsTypes[p], "Name"), elem.property(allPartsCtypes[p], "Name"))
+		-- 	-- print(tpt.get_property("temp", px, py))
+		-- end
+		if p then
+			-- Note: This is temporary because of a bug in TPT that causes pmap to return bad IDs under weird circumstances
+			-- This can be removed when the bug is fixed
+			local ptemp = sim.partProperty(p, "temp")
+			if p and ptemp and sim.partProperty(p, "temp") > 1500 then
+				local ptype = sim.partProperty(p, "type")
+				if not stgmImmune[ptype] and elem.property(ptype, "HeatConduct") > 0 then
+					fuel = fuel + 300
+					mass = mass + 1
+					stability = stability + 1
+					sim.partKill(p)
+					if fuel > 3000 then
+						stability = stability - 10
+					end
 				end
 			end
 		end
@@ -4239,8 +4315,8 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 
 	if stability <= 0 then
 		sim.partKill(i)
-		sim.partCreate(-3, x, y, elem.DEFAULT_PT_WARP)
-		sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC)
+		sim.partProperty(sim.partCreate(-3, x, y, elem.DEFAULT_PT_WARP), "temp", mass * 200)
+		sim.partProperty(sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC), "temp", mass * 200)
 		return
 	else
 		if fuel > 0 then
