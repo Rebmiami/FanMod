@@ -56,6 +56,10 @@ local stgm = elem.allocate("FanMod", "STGM") -- Strange matter
 local fngs = elem.allocate("FanMod", "FNGS") -- Fungus
 local spor = elem.allocate("FanMod", "SPOR") -- Fungus spore
 
+local plst = elem.allocate("FanMod", "PLST") -- Plastic
+local mpls = elem.allocate("FanMod", "MPLS") -- Melted plastic
+local plex = elem.allocate("FanMod", "PLEX") -- Plastic explosive
+
 -- Utilities
 
 local mouseButtonType = {
@@ -2149,6 +2153,7 @@ local halogenReactions = {
 	[elem.DEFAULT_PT_FSEP] = -5,
 	[elem.DEFAULT_PT_THDR] = -6,
 	[elem.DEFAULT_PT_LIGH] = -6,
+	[elem.DEFAULT_PT_OIL] = plst, -- polyvinyl chloride (PVC)
 }
 
 local dontProduceHeat = {
@@ -2171,6 +2176,9 @@ local noFire = {
 	[pflr] = true,
 	[elem.DEFAULT_PT_ACID] = true,
 	[elem.DEFAULT_PT_CLST] = true,
+	[plst] = true,
+	[mpls] = true,
+	[elem.DEFAULT_PT_GAS] = true,
 }
 
 -- Only a small subset of elements can survive charged HALO so that making weapons isn't *too* difficult
@@ -3927,7 +3935,7 @@ end
 
 local jacob1SprkInhibitor = false
 
-local function copperFloodFill(x, y)
+local function floodFill(x, y, condition, action)
 	local bitmap = {}
 	for i = 0, sim.XRES - 1 do
 		bitmap[i] = {}
@@ -3942,34 +3950,32 @@ local function copperFloodFill(x, y)
 	repeat 
 	 	local pos = table.remove(pstack)
 	 	local x1, x2, y1 = pos[1], pos[1], pos[2]
-	 	while x1 >= sim.CELL and copperInstAble(x1 - 1, y1) and bitmap[x1 - 1][y1] do
+	 	while x1 >= sim.CELL and condition(x1 - 1, y1) and bitmap[x1 - 1][y1] do
 	 		x1 = x1 - 1
 	 	end
-	 	while x2 < sim.XRES - sim.CELL and copperInstAble(x2 + 1, y1) and bitmap[x2 + 1][y1] do
+	 	while x2 < sim.XRES - sim.CELL and condition(x2 + 1, y1) and bitmap[x2 + 1][y1] do
 	 		x2 = x2 + 1
 	 	end
 	 	for i = x1, x2 do
-			jacob1SprkInhibitor = true
-	 		sim.partCreate(-1, i, y1, elem.DEFAULT_PT_SPRK)
+			action(i, y1)
 	 		bitmap[i][y1] = false
 	 	end
 	 	if y1 >= sim.CELL + 1 then
 	 		for i = x1, x2 do
-	 			if copperInstAble(i, y1 + 1) then
+	 			if condition(i, y1 + 1) then
 	 				pstack[#pstack + 1]	= {i, y1 + 1}
 	 			end
 	 		end
 	 	end
 	 	if y1 < sim.YRES - sim.CELL - 1 then
 	 		for i = x1, x2 do
-	 			if copperInstAble(i, y1 - 1) then
+	 			if condition(i, y1 - 1) then
 	 				pstack[#pstack + 1]	= {i, y1 - 1}
 	 			end
 	 		end
 	 	end
 	until (#pstack == 0)
 end
-
 
 -- Biostatic (stops living elements from growing)
 elem.property(elem.DEFAULT_PT_YEST, "Create", function(i, x, y, t, v)
@@ -3994,6 +4000,8 @@ end)
 local virsImmune = {
 	[elem.DEFAULT_PT_SPRK] = function(p) return sim.partProperty(p, "ctype") == copp end,
 	[copp] = function(p) return true end,
+	[plst] = function(p) return true end,
+	[mpls] = function(p) return true end,
 }
 
 elem.property(elem.DEFAULT_PT_VIRS, "CreateAllowed", function(p, x, y, t)
@@ -4040,7 +4048,12 @@ if tpt.version.jacob1s_mod then
 		if t1 == copp then
 			-- Superconductance
 			if sim.partProperty(i, "temp") < copperSuperconductTemp then
-				copperFloodFill(x, y)
+				floodFill(x, y, 
+					copperInstAble, 
+					function(x, y)
+						jacob1SprkInhibitor = true
+						sim.partCreate(-1, x, y, elem.DEFAULT_PT_SPRK)
+					end)
 			end
 			local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
 			for j,k in pairs(acid) do
@@ -4062,7 +4075,12 @@ else
 		if t2 == elem.DEFAULT_PT_SPRK then
 			-- Superconductance
 			if sim.partProperty(i, "temp") < copperSuperconductTemp then
-				copperFloodFill(x, y)
+				floodFill(x, y, 
+					copperInstAble, 
+					function(x, y)
+						jacob1SprkInhibitor = true
+						sim.partCreate(-1, x, y, elem.DEFAULT_PT_SPRK)
+					end)
 			end
 			local acid = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_ACID)
 			for j,k in pairs(acid) do
@@ -5312,6 +5330,155 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 
 	return 0, pixel_mode, 255, colr, colg, colb, firea, firer, fireg, fireb;
 end)
+
+local plstVars = {
+	deformLowTemp = 333,
+	deformTempRange = 40,
+	deformCoefficient = 0.1,
+	plexDeformCoefficient = 0.05,
+	meltLowTemp = 373,
+	meltTempRange = 100,
+	decompose = 623, -- 350C 
+	explodePlex = function(i, x, y, dx, dy)
+		-- sim.partKill(i)
+		if math.random() > 0.5 then
+			sim.partCreate(i, x, y, elem.DEFAULT_PT_PLSM)
+		else
+			sim.partCreate(i, x, y, elem.DEFAULT_PT_EMBR)
+		end
+		sim.partProperty(i, "temp", 5000)
+		sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 1.5)
+		sim.velocityX(x/4, y/4, 1, 1, sim.velocityX(x/4, y/4) - dx * 2.0)
+		sim.velocityY(x/4, y/4, 1, 1, sim.velocityY(x/4, y/4) - dy * 2.0)
+	end,
+}
+
+-- PLST is specifically a blend of the properties of various types of plastic as well as petroleum products
+-- Specifically, the three most common types of plastic: polyethylene (PE), polypropylene (PP), and polyvinyl chloride (PVC)
+-- The decomposition is based on PVC, which degrades into hydrochloric acid (represented by CAUS and HALO) when burned
+
+-- While it would be interesting if PLST functioned like INSL, I cannot replicate electrical insulation and, while thermal
+-- insulation would be possible, it would conflict with PLST's melting behavior.
+
+elem.element(plst, elem.element(elem.DEFAULT_PT_GOO))
+elem.property(plst, "Name", "PLST")
+elem.property(plst, "Description", "Plastic. Weakens with heat.")
+elem.property(plst, "Weight", 100)
+elem.property(plst, "Colour", 0x15B535)
+elem.property(plst, "Hardness", 0)
+elem.property(plst, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS)
+elem.property(plst, "HighTemperature", plstVars.meltLowTemp)
+elem.property(plst, "HighTemperatureTransition", mpls)
+elem.property(plst, "HeatConduct", 20)
+elem.property(plst, "Update", function(i, x, y, s, n)
+	local temp = sim.partProperty(i, "temp")
+	local deform = clamp((temp - plstVars.deformLowTemp) / plstVars.deformTempRange, 0, 1) 
+	local velx = sim.velocityX(x / 4, y / 4)
+	local vely = sim.velocityY(x / 4, y / 4)
+	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + deform * plstVars.deformCoefficient * velx)
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + deform * plstVars.deformCoefficient * vely)
+	end
+
+	local rad = sim.photons(x, y)
+	if rad and sim.partProperty(rad, "type") == elem.DEFAULT_PT_NEUT then
+		sim.partChangeType(i, plex)
+	end
+end)
+
+elem.element(plex, elem.element(elem.DEFAULT_PT_GOO))
+elem.property(plex, "Name", "PLEX")
+elem.property(plex, "Description", "Plastic explosive. Detonated only with SPRK; insensitive to heat and pressure.")
+elem.property(plex, "Weight", 100)
+elem.property(plex, "Colour", 0xB3EF1C)
+elem.property(plex, "Hardness", 0)
+elem.property(plex, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS)
+elem.property(plex, "HeatConduct", 20)
+elem.property(plex, "MenuSection", elem.SC_EXPLOSIVE)
+elem.property(plex, "Update", function(i, x, y, s, n)
+	if n > 0 then
+		local nearSprk = sim.partNeighbours(x, y, 2, elem.DEFAULT_PT_SPRK)
+		-- #nearSprk seems to not work here 100% consistently. Unsure why
+		for j, k in pairs(nearSprk) do 
+			-- print("KABOOM")
+			-- KABOOM!!!
+			floodFill(x, y, 
+				function(x1, y1)
+					local part = sim.pmap(x1, y1)
+					return part and sim.partProperty(part, "type") == plex
+				end, 
+				function(x1, y1)
+					-- There will always be a part at the given position
+					local part = sim.pmap(x1, y1)
+					local distance = math.sqrt((x - x1) ^ 2 + (y - y1) ^ 2)
+					local dx, dy = (x - x1) / distance, (y - y1) / distance
+					plstVars.explodePlex(part, x1, y1, dx, dy)
+				end)
+			break
+		end
+	end
+
+	-- Plastic explosives can be molded
+	local velx = sim.velocityX(x / 4, y / 4)
+	local vely = sim.velocityY(x / 4, y / 4)
+	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + plstVars.plexDeformCoefficient * velx)
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + plstVars.plexDeformCoefficient * vely)
+	end
+end)
+
+sim.can_move(elem.DEFAULT_PT_PHOT, plst, 2)
+sim.can_move(elem.DEFAULT_PT_PHOT, mpls, 2)
+
+elem.element(mpls, elem.element(elem.DEFAULT_PT_GEL))
+elem.property(mpls, "Name", "MPLS")
+elem.property(mpls, "Description", "Melted plastic. Viscosity changes with temperature.")
+elem.property(mpls, "Falldown", 2)
+elem.property(mpls, "Gravity", 0.2)
+elem.property(mpls, "Weight", 100)
+elem.property(mpls, "Colour", 0x81BE60)
+elem.property(mpls, "Hardness", 0)
+elem.property(mpls, "Properties", elem.TYPE_LIQUID)
+elem.property(mpls, "Temperature", plstVars.meltLowTemp + plstVars.meltTempRange)
+elem.property(mpls, "LowTemperature", plstVars.meltLowTemp)
+elem.property(mpls, "LowTemperatureTransition", plst)
+-- elem.property(mpls, "HighTemperature", plstVars.decompose)
+-- elem.property(mpls, "HighTemperatureTransition", elem.DEFAULT_PT_GAS)
+elem.property(mpls, "Update", function(i, x, y, s, n)
+	local temp = sim.partProperty(i, "temp")
+	local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
+
+	sim.partProperty(i, "vx", sim.partProperty(i, "vx") * meltiness) 
+	sim.partProperty(i, "vy", sim.partProperty(i, "vy") * meltiness)
+
+	if temp > plstVars.decompose then
+		if math.random() > 0.5 then
+			sim.partChangeType(i, halo)
+		else
+			sim.partChangeType(i, elem.DEFAULT_PT_CAUS)
+			sim.partProperty(i, "life", 75)
+		end
+	end
+end)
+
+
+elem.property(mpls, "Graphics", function (i, r, g, b)
+	local temp = sim.partProperty(i, "temp")
+	local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
+	local colr, colg, colb = graphics.getColors(0x15B535)
+	colr, colg, colb = r * meltiness + colr * (1 - meltiness), g * meltiness + colg * (1 - meltiness), b * meltiness + colb * (1 - meltiness)
+	-- local colr, colg, colb = r, g, b
+	
+	local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
+	return 0,pixel_mode,255,colr,colg,colb,255,colr,colg,colb;
+end)
+
+-- elem.property(mpls, "ChangeType", function(i, x, y, t1, t2)
+-- 	if t2 == elem.DEFAULT_PT_GAS then -- You're decomposing
+-- 		print(t1, t2)
+-- 		return false
+-- 	end
+-- end)
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
