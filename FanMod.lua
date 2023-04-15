@@ -1397,6 +1397,13 @@ local bitNegaterMap =
 	[0xF] = 0x30, -- Illegal state
 }
 
+local conductWaitTable = {
+	[0x1] = 0x1,
+	[0x2] = 0x1,
+	[0x4] = 0x2,
+	[0x8] = 0x2,
+}
+
 local hoveredPart = -1
 
 local tmp4Debug = true
@@ -1415,27 +1422,27 @@ event.register(event.tick, function()
 	end
 end)  
 
-local function sparkGraphite(i, sparkDir)
+local function sparkGraphite(i, sparkDir, source, p)
 	-- if i == hoveredPart then
 	-- 	print("They tried to spark me!")
 	-- end
 	if i ~= nil and (sim.partProperty(i, "type") == grph or (sim.partProperty(i, "type") == elem.DEFAULT_PT_SPRK and sim.partProperty(i, "ctype") == grph)) then
 		local dir = sim.partProperty(i, "tmp4")
 		local negate = bit.band(dir, bitNegaterMap[sparkDir] * 5)
-		if bit.band(dir, oppositeDirections[sparkDir] + sparkDir) == 0 and negate == 0x0 then 
-		
+		local tmp3 = sim.partProperty(i, "tmp3")
+		if bit.band(dir, oppositeDirections[sparkDir] + sparkDir) == 0 and negate == 0x0 then		
 			sim.partChangeType(i, elem.DEFAULT_PT_SPRK)
 			sim.partProperty(i, "ctype", grph)
-			-- if sim.partProperty(i, "life") <= 3 then
-			-- 	sim.partProperty(i, "tmp4", sparkDir)
-			-- else
+			-- if p == 4 then 
 				sim.partProperty(i, "tmp4", bit.bor(dir, sparkDir))
+			-- else
+			-- 	sim.partProperty(i, "tmp4", bit.bor(dir, bitNegaterMap[sparkDir]))
 			-- end
 			sim.partProperty(i, "life", 4)
-			sim.partProperty(i, "tmp3", nextGraphiteCycle)
-			-- if i == hoveredPart then
-			-- 	print("I got sparked! dir: " .. dir .. ", negate: " .. negate .. ", sparkDir: " .. sparkDir)
-			-- end
+			
+			if source < i then
+				sim.partProperty(i, "tmp3", tmp3 + conductWaitTable[sparkDir])
+			end
 		end
 		return true
 	end
@@ -1460,47 +1467,49 @@ local graphiteProgrammable = {
 }
 
 elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
-	print(i, x, y)
+	-- print(i, x, y)
 	--updateGraphiteCycle = true
 	local ctype = sim.partProperty(i, "ctype")
 	local life = sim.partProperty(i, "life")
 	local timer = sim.partProperty(i, "tmp3")
 	if ctype == grph then
-		if timer == graphiteCycle then
+		local tmp4 = sim.partProperty(i, "tmp4")
+		if life >= 3 then
 			for d = 1, 4 do
 				local dirBit = 2 ^ (d - 1)
-				local dir = bit.band(sim.partProperty(i, "tmp4"), dirBit)
-				if dir == dirBit then
+				local dir = bit.band(tmp4, dirBit)
+				if dir == dirBit and bit.band(timer, conductWaitTable[dirBit]) == 0  then
 					for p = 1, 4 do
 						local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
-						if not sparkGraphite(part, dir) and not graphiteSparkNormal(part) then
+						if not sparkGraphite(part, dir, i, p) and not graphiteSparkNormal(part) then
 							break
 						end
 					end
 				end
 			end
-		end
-
-		if life == 1 then
-			sim.partProperty(i, "tmp4", bitNegaterMap[bit.band(sim.partProperty(i, "tmp4"), 0xF)])
+			sim.partProperty(i, "tmp3", 0)
+		elseif life == 2 then -- and timer / 16 < 1
+			sim.partProperty(i, "tmp4", bitNegaterMap[bit.band(tmp4, 0xF)])
 		end
 	elseif ctype ~= elem.DEFAULT_PT_NSCN then
-		for d = 1, 4 do
-			local dirBit = 2 ^ (d - 1)
-			if graphiteProgrammable[ctype] then
-				local tmp = sim.partProperty(i, "tmp")
-				if bit.band(tmp, dirBit) ~= 0 then
-					goto continue
+		if life >= 3 then
+			local tmp = sim.partProperty(i, "tmp")
+			for d = 1, 4 do
+				local dirBit = 2 ^ (d - 1)
+				if graphiteProgrammable[ctype] then
+					if bit.band(tmp, dirBit) ~= 0 then
+						goto continue
+					end
 				end
-			end
-			local nearbyParts = nearbyPartsTable[dirBit](x, y)
-			for p = 1, 4 do
-				local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
-				if not sparkGraphite(part, dirBit) then
-					break
+				local nearbyParts = nearbyPartsTable[dirBit](x, y)
+				for p = 1, 4 do
+					local part = sim.pmap(x + initialDetectionOffsets[d][1] * p, y + initialDetectionOffsets[d][2] * p)
+					if not sparkGraphite(part, dirBit, i, p) then
+						break
+					end
 				end
+				::continue::
 			end
-			::continue::
 		end
 	end
 end, 3)
