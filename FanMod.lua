@@ -1393,7 +1393,7 @@ local conductWaitTable = {
 
 local hoveredPart = -1
 
-local tmp4Debug = true
+local tmp4Debug = false
 event.register(event.tick, function()
 	if tmp4Debug then
 		local gx, gy = sim.adjustCoords(tpt.mousex, tpt.mousey)
@@ -1584,7 +1584,6 @@ end)
 local function graphiteGraphics(i, r, g, b)
 
 	local tempC = sim.partProperty(i, "temp") - 273.15
-	local burn = graphiteBurnHealth - sim.partProperty(i, "tmp")
 	-- local vel = sim.velocityX(number x, number y)
 
 	local pixel_mode = ren.PMODE_FLAT
@@ -1594,6 +1593,7 @@ local function graphiteGraphics(i, r, g, b)
 	local colb = b
 
 	if sim.partProperty(i, "type") == grph then
+		local burn = graphiteBurnHealth - sim.partProperty(i, "tmp")
 		colr = r + burn * 5
 		colg = g + burn * 5
 		colb = b + burn * 4
@@ -1779,16 +1779,7 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 		end
 	end
 
-	if ctype == mmry then
-		sim.partProperty(i, "tmp", x)
-		sim.partProperty(i, "tmp2", y)
-		-- print (x, y)
-	end
-
 	if ctype == flor then
-		local pres = sim.pressure(x / sim.CELL, y / sim.CELL)
-		sim.partProperty(i, "tmp3", pres * 10)
-
 		local rn
 		if sim.partProperty(i, "temp") > 3000 + 273.15 then
 			rn = sim.pmap(x + math.random(7) - 4, y + math.random(7) - 4)
@@ -1853,54 +1844,61 @@ elem.property(melt, "Update", function(i, x, y, s, n)
 			sim.partProperty(i, "temp", temp + 0.03 * (273.15 + 200 - temp))
 		end
 
-		local rx = x + math.random(3) - 2
-		local ry = y + math.random(3) - 2
-		
-		if math.random(30) == 1 then
-			local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
-			sim.partProperty(smoke, "life", 240)
+		if s > 0 then
+			local rx = x + math.random(3) - 2
+			local ry = y + math.random(3) - 2
+			
+			if math.random(30) == 1 then
+				local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
+				sim.partProperty(smoke, "life", 240)
+			end
 		end
 	else
 		local tmp = sim.partProperty(i, "tmp")
 
-		local rx = x + math.random(3) - 2
-		local ry = y + math.random(3) - 2
-		local randomNeighbor = sim.pmap(rx, ry)
-		if randomNeighbor ~= nil then
-			local type = sim.partProperty(randomNeighbor, "type")
-			if waters[type] then
+		if n > 0 then
+			local rx = x + math.random(3) - 2
+			local ry = y + math.random(3) - 2
+			local randomNeighbor = sim.pmap(rx, ry)
+			if randomNeighbor ~= nil then
+				local type = sim.partProperty(randomNeighbor, "type")
 				local temp = sim.partProperty(randomNeighbor, "temp")
-				sim.partProperty(randomNeighbor, "temp", temp + 0.8 * (273.15 + 400 - temp))
-			end
+				if waters[type] then
+					sim.partProperty(randomNeighbor, "temp", temp + 0.8 * (273.15 + 400 - temp))
+				end
 
-			if math.random(60) == 1 and type == elem.DEFAULT_PT_LAVA then
-				sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
-			end
+				if math.random(60) == 1 and type == elem.DEFAULT_PT_LAVA then
+					tmp = tmp + 1
+				end
 
-			if sim.partProperty(randomNeighbor, "temp") > 273.15 and mLavaNeutralizers[type] then
-				if mLavaNeutralizersCtype[type] then
-					local ctype = sim.partProperty(randomNeighbor, "ctype")
-					if mLavaNeutralizers[ctype] then
+				if temp > 273.15 and mLavaNeutralizers[type] then
+					if mLavaNeutralizersCtype[type] then
+						local ctype = sim.partProperty(randomNeighbor, "ctype")
+						if mLavaNeutralizers[ctype] then
+							sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_WTRV)
+						end
+					else
 						sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_WTRV)
 					end
-				else
-					sim.partChangeType(randomNeighbor, elem.DEFAULT_PT_WTRV)
 				end
+			elseif math.random(600) <= tmp then
+				local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
+				sim.partProperty(smoke, "life", 240)
 			end
-		elseif math.random(600) <= tmp then
-			local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
-			sim.partProperty(smoke, "life", 240)
 		end
 
-		if math.random(60) == 1 and sim.partProperty(i, "temp") < 273.15 - 40 and tmp < 100 then
-			sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
+		local temp = sim.partProperty(i, "temp")
+		if math.random(60) == 1 and temp < 273.15 - 40 and tmp < 100 then
+			tmp = tmp + 1
 		end
 
-		sim.partProperty(i, "temp", sim.partProperty(i, "temp") + tmp / 4)
+		sim.partProperty(i, "temp", temp + tmp / 4)
 
-		if math.random() < sim.partProperty(i, "tmp") / 200 then
+		if math.random() < tmp / 200 then
 			sim.partChangeType(i, mlva)
 		end
+
+		sim.partProperty(i, "tmp", tmp)
 	end
 end)
 
@@ -1961,7 +1959,7 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 	local temp = sim.partProperty(i, "temp")
 
 	if math.random(10) == 1 and tmp < 100 then
-		sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") + 1)
+		sim.partProperty(i, "tmp", tmp + 1)
 	end
 
 	if math.random(192) == 1 then
@@ -1972,33 +1970,36 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 		sim.partProperty(i, "temp", temp + tmp / 4)
 	end
 
-	local rx = x + math.random(3) - 2
-	local ry = y + math.random(3) - 2
-	local randomNeighbor = sim.pmap(rx, ry)
-	if randomNeighbor ~= nil then
-		local type = sim.partProperty(randomNeighbor, "type")
-		if math.random(50) == 1 then
-			if type == elem.DEFAULT_PT_LAVA then
-				sim.partProperty(randomNeighbor, "type", mlva)
-			elseif elem.property(type, "HighTemperatureTransition") == elem.DEFAULT_PT_LAVA then
-				sim.partProperty(randomNeighbor, "temp", sim.partProperty(randomNeighbor, "temp") + 500)
-			end
-		end
-
-		if mLavaNeutralizers[type] then
-			if mLavaNeutralizersCtype[type] then
-				local ctype = sim.partProperty(randomNeighbor, "ctype")
-				if mLavaNeutralizers[ctype] then
+	
+	if n > 0 then
+		local rx = x + math.random(3) - 2
+		local ry = y + math.random(3) - 2
+		local randomNeighbor = sim.pmap(rx, ry)
+		if randomNeighbor ~= nil then
+			local type = sim.partProperty(randomNeighbor, "type")
+			if math.random(50) == 1 then
+				if type == elem.DEFAULT_PT_LAVA then
+					sim.partProperty(randomNeighbor, "type", mlva)
+				elseif elem.property(type, "HighTemperatureTransition") == elem.DEFAULT_PT_LAVA then
+					sim.partProperty(randomNeighbor, "temp", sim.partProperty(randomNeighbor, "temp") + 500)
 				end
-			else
-				sim.partChangeType(i, melt)
-				sim.partProperty(i, "tmp2", 1)
 			end
+
+			if mLavaNeutralizers[type] then
+				if mLavaNeutralizersCtype[type] then
+					local ctype = sim.partProperty(randomNeighbor, "ctype")
+					if mLavaNeutralizers[ctype] then
+					end
+				else
+					sim.partChangeType(i, melt)
+					sim.partProperty(i, "tmp2", 1)
+				end
+			end
+		elseif math.random(600) <= tmp then
+			local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
+			sim.partProperty(smoke, "temp", temp)
+			sim.partProperty(smoke, "life", 240)
 		end
-	elseif math.random(600) <= tmp then
-		local smoke = sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_SMKE)
-		sim.partProperty(smoke, "temp", temp)
-		sim.partProperty(smoke, "life", 240)
 	end
 end)
 
@@ -2048,9 +2049,12 @@ elem.property(mmry, "Update", function(i, x, y, s, n)
 	end
 	-- if (!parts[i].life && sim->pv[y/CELL][x/CELL]>1.0f)
 	-- 	parts[i].life = RNG::Ref().between(300, 379);
+
+	local vx = sim.partProperty(i, "vx")
+	local vy = sim.partProperty(i, "vy")
 	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
-		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + 0.1 * velx)
-		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + 0.1 * vely)
+		vx = vx + 0.1 * velx
+		vy = vy + 0.1 * vely
 	end
 	local desx = sim.partProperty(i, "tmp")
 	local desy = sim.partProperty(i, "tmp2")
@@ -2074,8 +2078,8 @@ elem.property(mmry, "Update", function(i, x, y, s, n)
 	
 	local overheat = 1 - math.max(temp - 273.15 - 1000, 0) / 800
 	local seek = returning / 300 * overheat
-	sim.partProperty(i, "vx", sim.partProperty(i, "vx") + seek * (desx - x + (math.random() - 0.5) * 0.1))
-	sim.partProperty(i, "vy", sim.partProperty(i, "vy") + seek * (desy - y + (math.random() - 0.5) * 0.1))
+	sim.partProperty(i, "vx", vx + seek * (desx - x + (math.random() - 0.5) * 0.1))
+	sim.partProperty(i, "vy", vy + seek * (desy - y + (math.random() - 0.5) * 0.1))
 
 	if returning > 0 then sim.partProperty(i, "life", 30) end
 end)
@@ -2211,36 +2215,38 @@ elem.property(halo, "Update", function(i, x, y, s, n)
 
 	local tmp = sim.partProperty(i, "tmp")
 	if tmp == 0 then
-		local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
-		if randomNeighbor ~= nil then
-			local type = sim.partProperty(randomNeighbor, "type")
-			local react = halogenReactions[type]
-			if react ~= nil then
-				if not dontProduceHeat[type] then
-					sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 100)
-				end
-				if react < 0 then
-					halogenInteractions[react](i, randomNeighbor)
-				else
-					local cx, cy = sim.partPosition(randomNeighbor)
-					local temp = sim.partProperty(randomNeighbor, "temp")
-					cx = round(cx)
-					cy = round(cy)
-					sim.partKill(randomNeighbor)
-					local new = sim.partCreate(-1, cx, cy, react)
-					if new ~= -1 then
-						if not dontProduceHeat[type] then
-							sim.partProperty(new, "temp", temp + 50)
-						end
-						if math.random(1, 5) == 1 then
-							sim.partKill(i)
+		if n > 0 then
+			local randomNeighbor = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+			if randomNeighbor ~= nil then
+				local type = sim.partProperty(randomNeighbor, "type")
+				local react = halogenReactions[type]
+				if react ~= nil then
+					if not dontProduceHeat[type] then
+						sim.partProperty(i, "temp", sim.partProperty(i, "temp") + 100)
+					end
+					if react < 0 then
+						halogenInteractions[react](i, randomNeighbor)
+					else
+						local cx, cy = sim.partPosition(randomNeighbor)
+						local temp = sim.partProperty(randomNeighbor, "temp")
+						cx = round(cx)
+						cy = round(cy)
+						sim.partKill(randomNeighbor)
+						local new = sim.partCreate(-1, cx, cy, react)
+						if new ~= -1 then
+							if not dontProduceHeat[type] then
+								sim.partProperty(new, "temp", temp + 50)
+							end
+							if math.random(1, 5) == 1 then
+								sim.partKill(i)
+							end
 						end
 					end
+				elseif not noFire[type] and (elem.property(type, "Flammable") > 0 or bit.band(elem.property(type, "Properties"), elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID) ~= 0) then
+					local rx = x + math.random(-1, 1)
+					local ry = y + math.random(-1, 1)
+					sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_FIRE)
 				end
-			elseif not noFire[type] and (elem.property(type, "Flammable") > 0 or bit.band(elem.property(type, "Properties"), elem.TYPE_LIQUID + elem.TYPE_PART + elem.TYPE_SOLID) ~= 0) then
-				local rx = x + math.random(-1, 1)
-				local ry = y + math.random(-1, 1)
-				sim.partCreate(-1, rx, ry, elem.DEFAULT_PT_FIRE)
 			end
 		end
 	else
@@ -2253,7 +2259,7 @@ elem.property(halo, "Update", function(i, x, y, s, n)
 			end
 		end
 		sim.pressure(x / sim.CELL, y / sim.CELL, sim.pressure(x / sim.CELL, y / sim.CELL) - 0.02)
-		sim.partProperty(i, "tmp", sim.partProperty(i, "tmp") - 1)
+		sim.partProperty(i, "tmp", tmp - 1)
 	end
 
 	
@@ -2364,6 +2370,17 @@ elem.property(flor, "Create", function(i, x, y, t, v)
 	sim.partProperty(i, "tmp", math.random(10) - 1)
 end)
 
+elem.property(elem.DEFAULT_PT_LAVA, "ChangeType", function(i, x, y, t1, t2)
+	if t2 == flor then
+		local pres = sim.pressure(x / sim.CELL, y / sim.CELL)
+		sim.partProperty(i, "tmp3", pres * 10)
+	end
+	if t2 == mmry then
+		sim.partProperty(i, "tmp", x)
+		sim.partProperty(i, "tmp2", y)
+	end
+end)
+
 local fluorineExciteMask = 0x000001FF
 local fluorineWlMultiplier =  0x00200000
 local fluorineTransmitMask = 0x000001FF * fluorineWlMultiplier
@@ -2405,18 +2422,20 @@ local function florUpdate(i, x, y, s, n)
 		sim.partProperty(i, "tmp3", pres * 10)
 	end
 
-	local r = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
-	if r ~= nil then
-		local type = sim.partProperty(r, "type")
-		if type == elem.DEFAULT_PT_ACID or type == elem.DEFAULT_PT_CAUS then
-			sim.partChangeType(i, elem.DEFAULT_PT_CLST)
-			sim.partChangeType(r, halo)
-			sim.partProperty(r, "life", 0)
-		end
-
-		if math.random(300) == 1 and trtwSpread[type] then
-			sim.partChangeType(r, trtw)
-			sim.partKill(i)
+	if n > 0 then
+		local r = sim.pmap(x + math.random(-2, 2), y + math.random(-2, 2))
+		if r ~= nil then
+			local type = sim.partProperty(r, "type")
+			if type == elem.DEFAULT_PT_ACID or type == elem.DEFAULT_PT_CAUS then
+				sim.partChangeType(i, elem.DEFAULT_PT_CLST)
+				sim.partChangeType(r, halo)
+				sim.partProperty(r, "life", 0)
+			end
+	
+			if math.random(300) == 1 and trtwSpread[type] then
+				sim.partChangeType(r, trtw)
+				sim.partKill(i)
+			end
 		end
 	end
 end
@@ -2855,7 +2874,7 @@ elem.property(no32, "Update", function(i, x, y, s, n)
 
 	if not info then 
 		sim.partProperty(i, "life", 0) -- Become grounded if in an invalid state
-		state = sim.partProperty(i, "life")
+		state = 0
 		info = stateInfo[state + 1]
 	end
 
@@ -3070,13 +3089,6 @@ end)
 local stateScreenShapes = {}
 
 local function createAndAddStateButton(x, y, wx, wy, state, window)
-	-- local stateButton = Button:new(x, y, 15, 15, "")
-	-- stateButton:action(
-	-- 	function()
-	-- 	interface.closeWindow(window)
-	-- end)
-	-- stateButton:visible(true)
-	-- window:addComponent(stateButton)
 	local colr, colg, colb = graphics.getColors(nobiliStateColorMap[state + 1])
 	table.insert(stateScreenShapes, {state, wx + x, wy + y, colr, colg, colb, 255})
 end
