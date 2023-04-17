@@ -4859,48 +4859,59 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 		if mode == 0 then -- Mycelium (spreads through substrate to gain resources)
 			if growing and water > 5 then
 				local reach = sim.partProperty(i, "tmp2")
-
-				local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
-				local adjFungus = sim.partNeighbours(px, py, 1, fngs)
-				local p = sim.pmap(px, py)
-				local ptype
-				if p then
-					ptype = sim.partProperty(p, "type")
-				end
-
-				local moist = moistSubstrate[ptype]
-				local dry = drySubstrate[ptype]
-
-				-- Changing to < 1 prevents mycelia from merging together.
-				-- This makes most species much less viable but also causes interesting shapes in the mycelial network.
-				-- If you're reading this, try changing it and see what happens to mycelium growth.
-				if #adjFungus < 2 and (not p or moist or dry) and reach < 25 then
-					-- if p then sim.partKill(p) end
-					local child = sim.partCreate(p or -1, px, py, fngs)
-					if child >= 0 then
-						if p then
-							sim.partProperty(child, "tmp", 0x8 + 0x0)
-							sim.partProperty(child, "tmp2", reach + 1)
-						else
-							sim.partProperty(child, "tmp", 0x8 + 0x4) -- "Surface" mycelium. Can grow shrooms
-							local angle = math.atan2(px - x, py - y)
-							sim.partProperty(child, "tmp3", (angle / math.pi * 1800 + (math.random() - 0.5) * 450) % 3600)
+				local growAttempts = sim.partProperty(i, "tmp3")
+				if growAttempts > 10 then 
+					sim.partProperty(i, "tmp", 0x0)
+				else
+					local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
+					local adjFungus = sim.partNeighbours(px, py, 1, fngs)
+					local p = sim.pmap(px, py)
+					local ptype
+					if p then
+						ptype = sim.partProperty(p, "type")
+					end
+	
+					local moist = moistSubstrate[ptype]
+					local dry = drySubstrate[ptype]
+	
+					-- Changing to < 1 prevents mycelia from merging together.
+					-- This makes most species much less viable but also causes interesting shapes in the mycelial network.
+					-- If you're reading this, try changing it and see what happens to mycelium growth.
+					if #adjFungus < 2 and (not p or moist or dry) and reach < 25 then
+						-- if p then sim.partKill(p) end
+						local child = sim.partCreate(p or -1, px, py, fngs)
+						if child >= 0 then
+							if p then
+								sim.partProperty(child, "tmp", 0x8 + 0x0)
+								sim.partProperty(child, "tmp2", reach + 1)
+							else
+								sim.partProperty(child, "tmp", 0x8 + 0x4) -- "Surface" mycelium. Can grow shrooms
+								local angle = math.atan2(px - x, py - y)
+								sim.partProperty(child, "tmp3", (angle / math.pi * 1800 + (math.random() - 0.5) * 450) % 3600)
+							end
+							sim.partProperty(child, "ctype", genome)
+							sim.partProperty(child, "life", 8 * (moist and 2 or 1))
+							sim.partProperty(child, "tmp4", visualGenome)
+							water = water - 3
 						end
-						sim.partProperty(child, "ctype", genome)
-						sim.partProperty(child, "life", 8 * (moist and 2 or 1))
-						sim.partProperty(child, "tmp4", visualGenome)
-						water = water - 3
+					elseif s == 0 then
+						sim.partProperty(i, "tmp3", growAttempts + 1)
+					end
+
+					local wx, wy = x + math.random(-1, 1), y + math.random(-1, 1)
+					local w = sim.pmap(wx, wy)
+					if w then
+						local wtype = sim.partProperty(w, "type")
+						if wtype == elem.DEFAULT_PT_WATR then
+							sim.partKill(w)
+							water = water + 10
+						end
 					end
 				end
-			end
-			local wx, wy = x + math.random(-1, 1), y + math.random(-1, 1)
-			local w = sim.pmap(wx, wy)
-			if w then
-				local wtype = sim.partProperty(w, "type")
-				if wtype == elem.DEFAULT_PT_WATR then
-					sim.partKill(w)
-					water = water + 10
-				end
+			elseif math.random(500) == 1 then
+				-- Randomly revive in case ungrowable conditions are no longer the case
+				sim.partProperty(i, "tmp", 0x8 + 0x0)
+				sim.partProperty(i, "tmp3", 0)
 			end
 		elseif mode == 1 then -- Primordium (pre-mushroom, absorbs resources until ready to grow)
 			-- Primordia die if all fungus supporting them dies
@@ -5238,19 +5249,10 @@ fngsVars.stipeColors = {
 
 
 elem.property(fngs, "Graphics", function (i, r, g, b)
-	local x, y = sim.partPosition(i)
-	local water = sim.partProperty(i, "life")
-
-	local genome = sim.partProperty(i, "ctype")
-	local genes = unpackFungusGenome(genome)
-	local geneVals = getGenomeValues(genes) -- This step is only necessary for the normal genome
-
-	local visualGenome = sim.partProperty(i, "tmp4")
-	local visualGenes = unpackFungusVisualGenome(visualGenome)
+	-- local water = sim.partProperty(i, "life")
 
 	local tmp = sim.partProperty(i, "tmp")
 	local mode = bit.band(tmp, 0x7)
-	local spot = bit.band(tmp, 0x100)
 
 	local colr, colg, colb = r, g, b
 	local pixel_mode = ren.FIRE_BLEND + ren.PMODE_FLAT
@@ -5258,6 +5260,14 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 	local firer, fireg, fireb = 0, 0, 0
 
 	if mode == 0x2 or mode == 0x3 then -- Flesh or hymenium
+		local genome = sim.partProperty(i, "ctype")
+
+		local genes = unpackFungusGenome(genome)
+		local geneVals = getGenomeValues(genes) -- This step is only necessary for the normal genome
+
+		local visualGenome = sim.partProperty(i, "tmp4")
+		local visualGenes = unpackFungusVisualGenome(visualGenome)
+
 		local reach = sim.partProperty(i, "tmp2")
 		local capReach = reach - geneVals[fngsVars.GENE_STEMHEIGHT]
 		local radius = math.abs(unweaveFungusRadius(sim.partProperty(i, "tmp3")))
@@ -5268,6 +5278,7 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 		-- 	colr, colg, colb = 255, 255, 255
 		-- end
 
+		local spot = bit.band(tmp, 0x100)
 		if capReach > 0 and not (visualGenes[fngsVars.VGENE_SPOTS] == 1 and spot == 0x100) then
 			local capReachScaled = capReach / geneVals[fngsVars.GENE_CAPHEIGHT]
 
@@ -5295,6 +5306,7 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 			colr, colg, colb = fngsVars.stipeColors[visualGenes[fngsVars.VGENE_STEMCOLOR] + 1](visualGenes[fngsVars.VGENE_CAPHUE] / 16 * 360, fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_STEMSATVAL] + 1][1], fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_STEMSATVAL] + 1][2])
 
 			if capReach <= 0 then
+				local x, y = sim.partPosition(i)
 				graphics.fillRect(x - stemWidth / 2 + 1, y + 0.5, stemWidth, 2, colr, colg, colb)
 			end
 		end
@@ -5309,6 +5321,7 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 	end
 
 	if mode == 0x1 then -- Primordia appear as small white blobs
+		local x, y = sim.partPosition(i)
 		graphics.fillCircle(x, y, 1, 1, 255, 255, 255)
 		colr, colg, colb = 255, 255, 255
 	end
@@ -5407,7 +5420,7 @@ elem.property(plex, "Update", function(i, x, y, s, n)
 	-- Plastic explosives can be molded
 	local velx = sim.velocityX(x / 4, y / 4)
 	local vely = sim.velocityY(x / 4, y / 4)
-	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
+	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.3 then
 		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + plstVars.plexDeformCoefficient * velx)
 		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + plstVars.plexDeformCoefficient * vely)
 	end
