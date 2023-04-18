@@ -197,6 +197,22 @@ local function hsvToRgb(h, s, v)
 	return r, g, b
 end
 
+-- Because of the overhead from calling the TPT API's bitwise operations, this is actually faster.
+-- However, it only works when checking one bit at a time.
+local function bitCheck(num, bit)
+	return num % (bit * 2) - num % bit == bit
+end
+
+-- Extracts the bits from a number from lbound to hbound inclusive
+local function filterBits(num, hbound, lbound)
+	return num % (hbound * 2) - num % lbound
+end
+
+-- Extracts the bits from a number from lbound to hbound inclusive, then divides by the lbound.
+local function extractBits(num, hbound, lbound)
+	return (num % (hbound * 2) - num % lbound) / lbound
+end
+
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
 elem.property(smdb, "Name", "SMDB")
 elem.property(smdb, "Description", "Super mega death bomb. Can destroy literally anything, including walls.")
@@ -1450,12 +1466,6 @@ local graphiteProgrammable = {
 	[elem.DEFAULT_PT_PTCT] = true,
 	[elem.DEFAULT_PT_NTCT] = true
 }
-
--- Because of the overhead from calling the TPT API's bitwise operations, this is actually faster.
--- However, it only works when checking one bit at a time.
-local function bitCheck(num, bit)
-	return num % (bit * 2) - num % bit == bit
-end
 
 elem.property(elem.DEFAULT_PT_SPRK, "Update", function(i, x, y, s, n)
 	-- print(i, x, y)
@@ -4460,15 +4470,15 @@ end
 
 local function unpackFungusGenome(genome)
 	return {
-		bit.band(genome, 0x0000000F) / 0x00000001, -- Stem height
-		bit.band(genome, 0x000000F0) / 0x00000010, -- Cap radius
-		bit.band(genome, 0x00000F00) / 0x00000100, -- Cap height
-		bit.band(genome, 0x00007000) / 0x00001000, -- Prim inhibition range
+		extractBits(genome, 0x00000008, 0x00000001), -- Stem height
+		extractBits(genome, 0x00000080, 0x00000010), -- Cap radius
+		extractBits(genome, 0x00000800, 0x00000100), -- Cap height
+		extractBits(genome, 0x00004000, 0x00001000), -- Prim inhibition range
 
-		bit.band(genome, 0x00018000) / 0x00008000, -- Cap bottom shape
-		bit.band(genome, 0x003E0000) / 0x00020000, -- Cap algo flatness
-		bit.band(genome, 0x07C00000) / 0x00400000, -- Cap algo theta
-		bit.band(genome, 0x78000000) / 0x08000000, -- Cap algo width
+		extractBits(genome, 0x00010000, 0x00008000), -- Cap bottom shape
+		extractBits(genome, 0x00200000, 0x00020000), -- Cap algo flatness
+		extractBits(genome, 0x04000000, 0x00400000), -- Cap algo theta
+		extractBits(genome, 0x40000000, 0x08000000), -- Cap algo width
 	}
 end
 
@@ -4498,22 +4508,19 @@ local genomeMaxValues = {
 
 local function unpackFungusVisualGenome(genome)
 	return {
-		bit.band(genome, 0x0000000F) / 0x00000001, -- Cap hue
-		bit.band(genome, 0x00000070) / 0x00000010, -- Cap hue 2 offset
-		bit.band(genome, 0x00000380) / 0x00000080, -- Cap sat/val 1
-		bit.band(genome, 0x00001C00) / 0x00000400, -- Cap sat/val 2
-
-		bit.band(genome, 0x00006000) / 0x00002000, -- Bioluminescence
-		bit.band(genome, 0x00008000) / 0x00008000, -- Spots
-		bit.band(genome, 0x00030000) / 0x00010000, -- Ridge height
-
-		bit.band(genome, 0x000C0000) / 0x00040000, -- Stem width
-		bit.band(genome, 0x00300000) / 0x00100000, -- Stem color
-		bit.band(genome, 0x01C00000) / 0x00400000, -- Stem sat/val
-
-		bit.band(genome, 0x0E000000) / 0x02000000, -- Gradient level
-		bit.band(genome, 0x30000000) / 0x10000000, -- Gradient size
-		bit.band(genome, 0x40000000) / 0x40000000, -- Gradient curve
+		extractBits(genome, 0x00000008, 0x00000001), -- Cap hue
+		extractBits(genome, 0x00000040, 0x00000010), -- Cap hue 2 offset
+		extractBits(genome, 0x00000200, 0x00000080), -- Cap sat/val 1
+		extractBits(genome, 0x00001000, 0x00000400), -- Cap sat/val 2
+		extractBits(genome, 0x00004000, 0x00002000), -- Bioluminescence
+		extractBits(genome, 0x00008000, 0x00008000), -- Spots
+		extractBits(genome, 0x00020000, 0x00010000), -- Ridge height
+		extractBits(genome, 0x00080000, 0x00040000), -- Stem width
+		extractBits(genome, 0x00200000, 0x00100000), -- Stem color
+		extractBits(genome, 0x01000000, 0x00400000), -- Stem sat/val
+		extractBits(genome, 0x08000000, 0x02000000), -- Gradient level
+		extractBits(genome, 0x20000000, 0x10000000), -- Gradient size
+		extractBits(genome, 0x40000000, 0x40000000), -- Gradient curve
 	}
 end
 
@@ -4643,7 +4650,7 @@ fngsVars.defaultGenomes = {
 	-- "Scarlet waxcap" (Hygrocybe coccinea)
 	{ {4, 6, 6, 2, 0, 2, 25, 4}, {0, 7, 0, 0, 0, 0, 1, 2, 3, 0, 1, 2, 1} },
 	-- "Golden-edge bonnet" (Mycena aurantiomarginata)
-	{ {10, 3, 6, 1, 0, 0, 28, 4}, {1, 5, 6, 0, 0, 0, 2, 1, 2, 4, 1, 0, 0} },
+	{ {10, 3, 6, 2, 0, 0, 28, 4}, {1, 5, 6, 0, 0, 0, 2, 1, 2, 4, 1, 0, 0} },
 	-- "Parrot waxcap" (Gliophorus psittacinus)
 	{ {7, 5, 5, 2, 0, 3, 31, 8}, {5, 0, 7, 1, 0, 0, 1, 1, 2, 7, 2, 2, 1} },
 	-- "Chicken of the woods" (Laetiporus sulphureus)
@@ -4837,10 +4844,10 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 		local water = sim.partProperty(i, "life")
 
 		local tmp = sim.partProperty(i, "tmp")
-		local mode = bit.band(tmp, 0x7)
-		local growing = bit.band(tmp, 0x8) ~= 0
-		local growTimer = bit.band(tmp, 0xF0) / 0x10
-		local spot = bit.band(tmp, 0x100)
+		local mode = tmp % 0x8
+		local growing = bitCheck(tmp, 0x8)
+		local growTimer = extractBits(tmp, 0x80, 0x10)
+		local spot = filterBits(tmp, 0x100, 0x100)
 		if growTimer > 0 then
 			growTimer = growTimer - 1
 			sim.partProperty(i, "tmp", 
