@@ -3443,6 +3443,7 @@ local bulletTypeInfo = {
 
 	[fuel] = {false, nil, nil, 600, nil, nil, 5},
 	[bgph] = {false, nil, nil, 59, 30, nil, 5},
+	[fngs] = {false, 295.15, nil, nil, nil, nil, 5},
 }
 
 local bulletTypeFunctions = {
@@ -4689,6 +4690,7 @@ local moistSubstrate = {
 	[elem.DEFAULT_PT_WOOD] = true,
 	[elem.DEFAULT_PT_PLNT] = true,
 	[elem.DEFAULT_PT_SPNG] = true,
+	[elem.DEFAULT_PT_GEL] = true, -- Only liquid substrate
 	[elem.DEFAULT_PT_GOO] = true,
 	[elem.DEFAULT_PT_WAX] = true,
 	[elem.DEFAULT_PT_CLST] = true,
@@ -4731,6 +4733,17 @@ local shroomImpenetrable = {
 	-- [fngs] = true,
 }
 
+-- This was a bug in an earlier version of FNGS that I've decided to reimplement as a "secret feature"
+randomMode = false
+function fngsVars.getRandomMushroomGenome()
+	if randomMode then
+		return math.random(0, 0x7FFFFFFF), math.random(0, 0x7FFFFFFF)
+	else
+		local species = fngsVars.defaultGenomes[math.random(#fngsVars.defaultGenomes)]
+		return packFungusGenome(species[1]), packFungusVisualGenome(species[2])
+	end
+end
+
 -- Yet another overly complicated Element. I seem to have a knack for making these
 
 -- Property structure
@@ -4753,21 +4766,44 @@ elem.property(fngs, "Colour", 0xDAD2B4)
 elem.property(fngs, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS)
 elem.property(fngs, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a clump of new mycelium
-		local species = fngsVars.defaultGenomes[math.random(#fngsVars.defaultGenomes)]
-		sim.partProperty(i, "ctype", packFungusGenome(species[1]))
-		sim.partProperty(i, "tmp4", packFungusVisualGenome(species[2]))
-		-- sim.partProperty(i, "ctype", 2090292853)
+		local g, vg = fngsVars.getRandomMushroomGenome()
+		sim.partProperty(i, "ctype", g)
+		sim.partProperty(i, "tmp4", vg)
+
 		sim.partProperty(i, "tmp", 0x8 + 0x0)
 		sim.partProperty(i, "life", 50) -- Newly spawned FNGS gets extra life to create lots of mushrooms
 	else
 		-- Make no assumptions of your mycelial brethren
 	end
 end)
+
+bulletTypeFunctions[fngs] = function(i)
+	sim.partChangeType(i, spor)
+	local species = fngsVars.defaultGenomes[math.random(#fngsVars.defaultGenomes)]
+	sim.partProperty(i, "ctype", packFungusGenome(species[1]))
+	sim.partProperty(i, "tmp4", packFungusVisualGenome(species[2]))
+end
+
 elem.property(fngs, "CreateAllowed", function(p, x, y, t)
 	if (p == -1 or p >= 0) and #sim.partNeighbours(x, y, 2, copp) > 0 then
 		return false
 	end
 	return true
+end)
+
+elem.property(elem.DEFAULT_PT_WATR, "Update", function(i, x, y, s, n)
+	if s ~= n then
+		local adjFungus = sim.partNeighbours(x, y, 1, fngs)
+		for j,k in pairs(adjFungus) do
+			local tmp = sim.partProperty(k, "tmp")
+			local mode = tmp % 0x8
+			if mode == 0 or mode == 4 then 
+				sim.partKill(i)
+				sim.partProperty(k, "life", sim.partProperty(k, "life") + 1)
+				break
+			end
+		end
+	end
 end)
 
 elem.element(spor, elem.element(elem.DEFAULT_PT_DUST))
@@ -4785,15 +4821,15 @@ elem.property(spor, "Weight", 80)
 elem.property(spor, "MenuSection", -1)
 elem.property(spor, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a random genome
-		sim.partProperty(i, "ctype", math.random(0, 0x7FFFFFFF))
-		sim.partProperty(i, "tmp4", math.random(0, 0x7FFFFFFF))
+		local g, vg = fngsVars.getRandomMushroomGenome()
+		sim.partProperty(i, "ctype", g)
+		sim.partProperty(i, "tmp4", vg)
 	else
 		-- Make no assumptions of your fungal sprethren
 	end
 end)
 elem.property(spor, "Update", function(i, x, y, s, n)
 	if s ~= n then
-		local adjFungus = sim.partNeighbours(x, y, 1, fngs)
 		local px, py = x + math.random(-1, 1), y + math.random(-1, 1)
 		local p = sim.pmap(px, py)
 		if p then
@@ -4802,6 +4838,7 @@ elem.property(spor, "Update", function(i, x, y, s, n)
 			local moist = moistSubstrate[ptype]
 			local dry = drySubstrate[ptype]
 			if pStopped and (moist or dry) then
+				local adjFungus = sim.partNeighbours(x, y, 1, fngs)
 				if #adjFungus > 0 then
 					if math.random(10) == 1 then -- Make shorter mushrooms more viable
 						sim.partKill(i)
@@ -4903,16 +4940,6 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						end
 					elseif s == 0 then
 						sim.partProperty(i, "tmp3", growAttempts + 1)
-					end
-
-					local wx, wy = x + math.random(-1, 1), y + math.random(-1, 1)
-					local w = sim.pmap(wx, wy)
-					if w then
-						local wtype = sim.partProperty(w, "type")
-						if wtype == elem.DEFAULT_PT_WATR then
-							sim.partKill(w)
-							water = water + 10
-						end
 					end
 				end
 			elseif math.random(500) == 1 then
@@ -5163,6 +5190,21 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 					water = water - waterDiff
 					sim.partProperty(p, "life", pWater + waterDiff)
 				end 
+			end
+		end
+		
+		if mode == 0 then			
+			for j,k in pairs(sim.partNeighbours(x, y, 1, elem.DEFAULT_PT_SPNG)) do
+				local pWater = sim.partProperty(k, "life")
+				local waterDiff = math.floor((water - pWater) / 2)
+				water = water - waterDiff
+				sim.partProperty(k, "life", pWater + waterDiff)
+			end
+			for j,k in pairs(sim.partNeighbours(x, y, 1, elem.DEFAULT_PT_GEL)) do
+				local pWater = sim.partProperty(k, "tmp")
+				local waterDiff = math.floor((water - pWater) / 2)
+				water = water - waterDiff
+				sim.partProperty(k, "tmp", pWater + waterDiff)
 			end
 		end
 
