@@ -3396,59 +3396,98 @@ local bulletImmune = {
 local bulletDefault = {false, -1, 1, nil, nil, nil, 3}
 
 local bulletTypeInfo = {
+	-- Basic types
 	[elem.DEFAULT_PT_EMBR] = {true, nil, nil, 50, 0, 0, 2},
 	[elem.DEFAULT_PT_FIRE] = {false, nil, nil, nil, nil, nil, 3},
-	[elem.DEFAULT_PT_PLSM] = {false, nil, nil, nil, nil, nil, 3},
+	[elem.DEFAULT_PT_CFLM] = {false, -1, nil, nil, nil, nil, 3},
+	[elem.DEFAULT_PT_PLSM] = {true, nil, 0, 60, nil, nil, 3}, -- Makes sure this isn't the same as FIRE
 	[elem.DEFAULT_PT_LAVA] = {false, nil, nil, nil, nil, nil, 3},
 
+	-- Instant explode/activate types
+	  -- Activated by temperature
+	[elem.DEFAULT_PT_TNT] = {true, 1000, nil, nil, nil, nil, 5},
+	[elem.DEFAULT_PT_PLEX] = {true, 1000, nil, nil, nil, nil, 5}, -- C-4, not this script's PLEX.
+	[elem.DEFAULT_PT_C5] = {true, 0, nil, nil, nil, nil, 5},
+	[stgm] = {true, 7000, -256, nil, 90, nil, 5},
+
+	  -- Activated by contact
 	[elem.DEFAULT_PT_THDR] = {true, nil, nil, nil, nil, nil, 1},
 	[elem.DEFAULT_PT_BOMB] = {true, nil, nil, nil, nil, nil, 1},
 	[elem.DEFAULT_PT_DEST] = {true, nil, -30, 30, nil, nil, 2},
 	[elem.DEFAULT_PT_DMG] = {true, nil, nil, nil, nil, nil, 1},
+	[elem.DEFAULT_PT_COAL] = {true, nil, nil, 99, nil, nil, 3},
+	[elem.DEFAULT_PT_BCOL] = {true, nil, nil, 99, nil, nil, 3},
+	[elem.DEFAULT_PT_LITH] = {true, nil, nil, 1016, nil, nil, 3},
+
+	  -- Activated by modifying some property
 	[elem.DEFAULT_PT_GBMB] = {true, nil, nil, 60, nil, nil, 2},
 	[elem.DEFAULT_PT_VIBR] = {true, nil, nil, 2, 0, nil, 2},
 	[elem.DEFAULT_PT_BVBR] = {true, nil, nil, 2, 0, nil, 2},
 	[elem.DEFAULT_PT_SING] = {true, nil, nil, 0, 100, nil, 2},
-	[elem.DEFAULT_PT_COAL] = {true, nil, nil, 99, nil, nil, 3},
-	[elem.DEFAULT_PT_BCOL] = {true, nil, nil, 99, nil, nil, 3},
-	[elem.DEFAULT_PT_HYGN] = {true, 10000, 256, nil, nil, nil, 10}, -- FUSION
-
 	[elem.DEFAULT_PT_FWRK] = {true, nil, nil, 2, nil, nil, 2},
 	[elem.DEFAULT_PT_FIRW] = {true, nil, nil, nil, 2, nil, 2},
-
 	[elem.DEFAULT_PT_FUSE] = {false, nil, nil, 39, nil, nil, 5},
 	[elem.DEFAULT_PT_FSEP] = {false, nil, nil, 39, nil, nil, 5},
+	[elem.DEFAULT_PT_IGNC] = {false, -1, nil, 500, 1, nil, 3}, -- Classic flare brick material
+	[fuel] = {false, nil, nil, 600, nil, nil, 5},
+	[bgph] = {false, nil, nil, 59, 30, nil, 5},
 
+	  -- Other activation methods
+	[plex] = {true, nil, 0, nil, nil, nil, 8},
+	[elem.DEFAULT_PT_HYGN] = {true, 10000, 256, nil, nil, nil, 10}, -- FUSION
+
+	-- Growth/expansion types
 	[elem.DEFAULT_PT_DEUT] = {false, nil, nil, 300, nil, nil, 2},
 	[elem.DEFAULT_PT_MERC] = {false, nil, nil, nil, 300, nil, 2},
+	[elem.DEFAULT_PT_SPNG] = {false, 295.15, nil, 100, nil, nil, 4},
+	[elem.DEFAULT_PT_QRTZ] = {false, -1, 1, nil, 100, nil, 2},
+	[elem.DEFAULT_PT_SHLD] = {false, -1, 0, nil, nil, nil, 2},
+	[elem.DEFAULT_PT_YEST] = {false, 316.99, nil, nil, nil, nil, 10},
 	
+	-- Conversion types
 	[elem.DEFAULT_PT_GOLD] = {true, 295.15, nil, nil, nil, nil, 4, true},
 	[elem.DEFAULT_PT_AMTR] = {true, nil, nil, nil, nil, nil, 4, true},
+	[elem.DEFAULT_PT_ICE] = {true, 0, -4, nil, nil, nil, 6, true},
 	
-	[elem.DEFAULT_PT_SPNG] = {false, 295.15, nil, 100, nil, nil, 4},
-
-	[elem.DEFAULT_PT_URAN] = {true, 10000, nil, nil, nil, nil, 2},
-
-	[elem.DEFAULT_PT_BHOL] = {true, nil, -1000, nil, nil, nil, 0},
-	[elem.DEFAULT_PT_WHOL] = {true, nil, 1000, nil, nil, nil, 0},
-	
+	-- Radiation types
 	[elem.DEFAULT_PT_PHOT] = {false, nil, nil, nil, nil, nil, 6},
 	[elem.DEFAULT_PT_PROT] = {false, nil, nil, nil, nil, nil, 6},
 	[elem.DEFAULT_PT_ELEC] = {false, nil, nil, nil, nil, nil, 6},
 	[elem.DEFAULT_PT_GRVT] = {false, nil, nil, nil, nil, nil, 6},
 	[elem.DEFAULT_PT_NEUT] = {false, nil, nil, nil, nil, nil, 6},
 
+	-- Special types
 	[elem.DEFAULT_PT_VOID] = {true, nil, nil, nil, nil, nil, 15},
 	[elem.DEFAULT_PT_DMND] = {true, nil, nil, nil, nil, nil, 3},
+	
+	-- Miscellaneous
+	[elem.DEFAULT_PT_URAN] = {true, 10000, nil, nil, nil, nil, 2},
 
-	[fuel] = {false, nil, nil, 600, nil, nil, 5},
-	[bgph] = {false, nil, nil, 59, 30, nil, 5},
-	[fngs] = {false, 295.15, nil, nil, nil, nil, 5},
+	[elem.DEFAULT_PT_BHOL] = {true, nil, -1000, nil, nil, nil, 0},
+	[elem.DEFAULT_PT_WHOL] = {true, nil, 1000, nil, nil, nil, 0},
+
+	[elem.DEFAULT_PT_LIGH] = {false, -1, nil, 20, nil, nil, 3},
+
+	[fngs] = {false, -1, nil, nil, nil, nil, 5},
 }
 
 local bulletTypeFunctions = {
 	[elem.DEFAULT_PT_DRAY] = function(i)
 		if math.random() > 0.5 then -- DRAY bomb
+			sim.partProperty(i, "type", elem.DEFAULT_PT_SPRK)
+			sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
+			sim.partProperty(i, "life", 4)
+		end
+	end,
+	[elem.DEFAULT_PT_EMP] = function(i)
+		if math.random() > 0.5 then
+			sim.partProperty(i, "type", elem.DEFAULT_PT_SPRK)
+			sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
+			sim.partProperty(i, "life", 4)
+		end
+	end,
+	[plex] = function(i)
+		if math.random() > 0.9 then
 			sim.partProperty(i, "type", elem.DEFAULT_PT_SPRK)
 			sim.partProperty(i, "ctype", elem.DEFAULT_PT_METL)
 			sim.partProperty(i, "life", 4)
@@ -3460,6 +3499,20 @@ local bulletTypeFunctions = {
 	[elem.DEFAULT_PT_VOID] = function(i)
 		sim.partKill(i)
 	end,
+	[elem.DEFAULT_PT_LIGH] = function(i)
+		sim.partProperty(i, "tmp", math.random(0, 359))
+	end,
+	[elem.DEFAULT_PT_SHLD] = function(i)
+		sim.partChangeType(i, elem.DEFAULT_PT_SHD3)
+		sim.partProperty(i, "life", 100)
+	end,
+	[trit] = function(i)
+		sim.partProperty(i, "tmp", 20 + math.random(20))
+	end,
+	[elem.DEFAULT_PT_WARP] = function(i)
+		sim.partProperty(i, "tmp2", 10000)
+	end,
+	-- FNGS has a special function too, but it's defined later
 }
 
 local stkmAmmoFire
@@ -4425,7 +4478,7 @@ local function unweaveFungusRadius(num)
 end
 
 local function sign(num)
-    return num > 0 and 1 or (num == 0 and 0 or -1)
+	return num > 0 and 1 or (num == 0 and 0 or -1)
 end
 
 local shroomCurveDerivativeSolutions = {
@@ -5301,7 +5354,7 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 	-- local water = sim.partProperty(i, "life")
 
 	local tmp = sim.partProperty(i, "tmp")
-	local mode = bit.band(tmp, 0x7)
+	local mode = tmp % 0x8
 
 	local colr, colg, colb = r, g, b
 	local pixel_mode = ren.FIRE_BLEND + ren.PMODE_FLAT
