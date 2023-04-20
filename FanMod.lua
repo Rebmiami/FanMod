@@ -3402,6 +3402,7 @@ local bulletTypeInfo = {
 	[elem.DEFAULT_PT_CFLM] = {false, -1, nil, nil, nil, nil, 3},
 	[elem.DEFAULT_PT_PLSM] = {true, nil, 0, 60, nil, nil, 3}, -- Makes sure this isn't the same as FIRE
 	[elem.DEFAULT_PT_LAVA] = {false, nil, nil, nil, nil, nil, 3},
+	[elem.DEFAULT_PT_BOYL] = {true, nil, nil, nil, nil, nil, 3},
 
 	-- Instant explode/activate types
 	  -- Activated by temperature
@@ -3457,11 +3458,12 @@ local bulletTypeInfo = {
 	[elem.DEFAULT_PT_NEUT] = {false, nil, nil, nil, nil, nil, 6},
 
 	-- Special types
-	[elem.DEFAULT_PT_VOID] = {true, nil, nil, nil, nil, nil, 15},
+	[elem.DEFAULT_PT_VOID] = {true, nil, -1000, nil, nil, nil, 15},
 	[elem.DEFAULT_PT_DMND] = {true, nil, nil, nil, nil, nil, 3},
 	
 	-- Miscellaneous
 	[elem.DEFAULT_PT_URAN] = {true, 10000, nil, nil, nil, nil, 2},
+	[elem.DEFAULT_PT_PLUT] = {true, 10000, 1000, nil, nil, nil, 6},
 
 	[elem.DEFAULT_PT_BHOL] = {true, nil, -1000, nil, nil, nil, 0},
 	[elem.DEFAULT_PT_WHOL] = {true, nil, 1000, nil, nil, nil, 0},
@@ -3507,10 +3509,16 @@ local bulletTypeFunctions = {
 		sim.partProperty(i, "life", 100)
 	end,
 	[trit] = function(i)
-		sim.partProperty(i, "tmp", 20 + math.random(20))
+		sim.partProperty(i, "tmp", math.random(20))
 	end,
 	[elem.DEFAULT_PT_WARP] = function(i)
 		sim.partProperty(i, "tmp2", 10000)
+	end,
+	[elem.DEFAULT_PT_PLUT] = function(i)
+		if math.random() > 0.5 then
+			sim.partProperty(i, "type", elem.DEFAULT_PT_NEUT)
+			sim.partProperty(i, "life", 60)
+		end
 	end,
 	-- FNGS has a special function too, but it's defined later
 }
