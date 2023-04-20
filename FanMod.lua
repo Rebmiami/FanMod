@@ -4779,6 +4779,7 @@ local drySubstrate = {
 -- Mushrooms can pierce certain elements if they're blocking their growth.
 -- These cannot be penetrated
 local shroomImpenetrable = {
+	-- Special elements
 	[elem.DEFAULT_PT_DMND] = true,
 	[elem.DEFAULT_PT_CLNE] = true,
 	[elem.DEFAULT_PT_VOID] = true,
@@ -4790,7 +4791,19 @@ local shroomImpenetrable = {
 	[elem.DEFAULT_PT_PRTI] = true,
 	[elem.DEFAULT_PT_PRTO] = true,
 	[elem.DEFAULT_PT_VIBR] = true,
+
+	-- Makes sense or improves usability of the element
 	[copp] = true,
+	[grph] = true,
+	[elem.DEFAULT_PT_TTAN] = true,
+	[elem.DEFAULT_PT_QRTZ] = true,
+	[elem.DEFAULT_PT_GOLD] = true,
+	[elem.DEFAULT_PT_PTNM] = true,
+	[elem.DEFAULT_PT_CRMC] = true,
+	[elem.DEFAULT_PT_GLAS] = true, -- Even though glass is brittle, shrooms breaking GLAS is annoying.
+	[elem.DEFAULT_PT_FILT] = true, -- Under the assumption that FILT is a glass-like material, which we don't know.
+	[elem.DEFAULT_PT_IRON] = true,
+	[elem.DEFAULT_PT_METL] = true,
 	-- [fngs] = true,
 }
 
