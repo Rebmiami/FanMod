@@ -213,6 +213,48 @@ local function extractBits(num, hbound, lbound)
 	return (num % (hbound * 2) - num % lbound) / lbound
 end
 
+local function floodFill(x, y, condition, action)
+	local bitmap = {}
+	for i = 0, sim.XRES - 1 do
+		bitmap[i] = {}
+		for j = 0, sim.YRES - 1 do
+			bitmap[i][j] = true
+		end
+	end
+	local pstack = {}
+	-- Push starting position to stack
+	pstack[#pstack + 1]	= {x, y}
+
+	repeat 
+	 	local pos = table.remove(pstack)
+	 	local x1, x2, y1 = pos[1], pos[1], pos[2]
+	 	while x1 >= sim.CELL and condition(x1 - 1, y1) and bitmap[x1 - 1][y1] do
+	 		x1 = x1 - 1
+	 	end
+	 	while x2 < sim.XRES - sim.CELL and condition(x2 + 1, y1) and bitmap[x2 + 1][y1] do
+	 		x2 = x2 + 1
+	 	end
+	 	for i = x1, x2 do
+			action(i, y1)
+			bitmap[i][y1] = false
+	 	end
+	 	if y1 >= sim.CELL + 1 then
+	 		for i = x1, x2 do
+	 			if condition(i, y1 + 1) then
+	 				pstack[#pstack + 1]	= {i, y1 + 1}
+	 			end
+	 		end
+	 	end
+	 	if y1 < sim.YRES - sim.CELL - 1 then
+	 		for i = x1, x2 do
+	 			if condition(i, y1 - 1) then
+	 				pstack[#pstack + 1]	= {i, y1 - 1}
+	 			end
+	 		end
+	 	end
+	until (#pstack == 0)
+end
+
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
 elem.property(smdb, "Name", "SMDB")
 elem.property(smdb, "Description", "Super mega death bomb. Can destroy literally anything, including walls.")
@@ -2744,12 +2786,6 @@ local vonNeumannNeighbors = {
 	{0, 1}, -- Down
 }
 
-local vonNeumannComplement = {
-	{-1, 0}, -- Left
-	{0, 1}, -- Down
-	{1, 0}, -- Right
-	{0, -1}, -- Up
-}
 
 local directionComplement = {
 	3,
@@ -2826,7 +2862,59 @@ local confluentBridgeStateMap = {
 	[0x3] = 31,
 }
 
-local nobiliBrushState = 1
+nobiliBrushState = 1
+nobiliEasyWires = MANAGER.getsetting("FanElementsMod", "nobiliEasyWires") == "true"
+nobiliLastWire = -1
+nobiliNextLastWire = -1
+nobiliJustPlaced = {}
+
+-- Because multiple NO32 particles can be placed by the user in a single frame and there is no guarantee their IDs will line up
+-- with the path they were drawn, iterate through all relevant particles placed by the user in the previous frame to make sure
+-- that easy wires functions correctly in most realistic use cases.
+event.register(event.tick, function()
+	if #nobiliJustPlaced > 0 and nobiliLastWire >= 0 and sim.partExists(nobiliLastWire) and sim.partProperty(nobiliLastWire, "type") == no32 then
+		local nobiliPmap = {}
+		for i,j in pairs(nobiliJustPlaced) do
+			local x, y = sim.partPosition(j)
+			if not nobiliPmap[x] then nobiliPmap[x] = {} end
+			nobiliPmap[x][y] = j
+		end
+		local x, y = sim.partPosition(nobiliLastWire)
+
+		local iteration = 1000
+		-- Navigate through the recently placed particles to order them properly
+		-- This works well when drawing straight lines as long as you place a single pixel to start
+		repeat
+			iteration = iteration - 1
+			for d = 1, 4 do
+				local x1, y1 = x + vonNeumannNeighbors[d][1], y + vonNeumannNeighbors[d][2]
+				if nobiliPmap[x1] ~= nil and nobiliPmap[x1][y1] ~= nil then
+					x, y = x1, y1
+					local iState = sim.partProperty(nobiliLastWire, "life")
+					local iStateInfo = stateInfo[iState + 1]
+					-- This should always be a transmission state (wire) but we check to make sure (it could've been deleted by an antiwire, for example)
+					if iStateInfo[1] == 2 then
+						local iStateDir = iStateInfo[2]
+						local newState = iState - iStateDir + d
+						sim.partProperty(nobiliLastWire, "life", newState)
+					end
+					nobiliLastWire = nobiliPmap[x][y]
+					nobiliPmap[x][y] = nil
+					goto continue
+				end
+			end
+			do
+				-- For some reason, Lua does not like this when it isn't inside a do-end block.
+				break
+			end
+			::continue::
+		until (iteration <= 0)
+	end
+	if #nobiliJustPlaced == 1 then
+		nobiliLastWire = nobiliNextLastWire
+	end
+	nobiliJustPlaced = {}
+end)
 
 event.register(event.mousedown, function(x, y, button)
 	if button == 2 then
@@ -2852,7 +2940,16 @@ elem.property(no32, "MenuSection", elem.SC_LIFE)
 elem.property(no32, "CreateAllowed", function(p, x, y, t)
 	if p == -2 then
 		local i = sim.partCreate(-1, x, y, no32) -- User palette choice
-		sim.partProperty(i, "life", nobiliBrushState)
+
+		local stateToDraw = nobiliBrushState
+		if nobiliEasyWires then
+			if stateInfo[stateToDraw + 1][1] == 2 then
+				table.insert(nobiliJustPlaced, i)
+				nobiliNextLastWire = i
+			end
+		end
+
+		sim.partProperty(i, "life", stateToDraw)
 		return false
 	end
 	return true
@@ -3106,7 +3203,7 @@ end
 
 event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 	if ctrl and tpt.selectedl == "FANMOD_PT_NO32" and key == 115 then -- S 
-		local stateSelectWindow = Window:new(-1, -1, 200, 200)
+		local stateSelectWindow = Window:new(-1, -1, 200, 220)
 
 		local titleLabel = Label:new(0, 0, 200, 16, "Nobili32 State Select")
 		stateSelectWindow:addComponent(titleLabel)
@@ -3215,7 +3312,21 @@ event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 		
 		end)
 
-	
+		local autoWireButton = Button:new(20, 195, 160, 16)
+		autoWireButton:action(
+			function(sender)
+				nobiliEasyWires = not nobiliEasyWires
+				if nobiliEasyWires then
+					autoWireButton:text("Easy Wires ON")
+				else
+					autoWireButton:text("Easy Wires OFF")
+				end
+				MANAGER.savesetting("FanElementsMod", "nobiliEasyWires", nobiliEasyWires)
+			end)
+		autoWireButton:text(nobiliEasyWires and "Easy Wires ON" or "Easy Wires OFF")
+		stateSelectWindow:addComponent(autoWireButton)
+
+
 		interface.showWindow(stateSelectWindow)
 		stateSelectWindow:onTryExit(function()
 			interface.closeWindow(stateSelectWindow)
@@ -3992,47 +4103,7 @@ end
 
 local jacob1SprkInhibitor = false
 
-local function floodFill(x, y, condition, action)
-	local bitmap = {}
-	for i = 0, sim.XRES - 1 do
-		bitmap[i] = {}
-		for j = 0, sim.YRES - 1 do
-			bitmap[i][j] = true
-		end
-	end
-	local pstack = {}
-	-- Push starting position to stack
-	pstack[#pstack + 1]	= {x, y}
 
-	repeat 
-	 	local pos = table.remove(pstack)
-	 	local x1, x2, y1 = pos[1], pos[1], pos[2]
-	 	while x1 >= sim.CELL and condition(x1 - 1, y1) and bitmap[x1 - 1][y1] do
-	 		x1 = x1 - 1
-	 	end
-	 	while x2 < sim.XRES - sim.CELL and condition(x2 + 1, y1) and bitmap[x2 + 1][y1] do
-	 		x2 = x2 + 1
-	 	end
-	 	for i = x1, x2 do
-			action(i, y1)
-	 		bitmap[i][y1] = false
-	 	end
-	 	if y1 >= sim.CELL + 1 then
-	 		for i = x1, x2 do
-	 			if condition(i, y1 + 1) then
-	 				pstack[#pstack + 1]	= {i, y1 + 1}
-	 			end
-	 		end
-	 	end
-	 	if y1 < sim.YRES - sim.CELL - 1 then
-	 		for i = x1, x2 do
-	 			if condition(i, y1 - 1) then
-	 				pstack[#pstack + 1]	= {i, y1 - 1}
-	 			end
-	 		end
-	 	end
-	until (#pstack == 0)
-end
 
 -- Biostatic (stops living elements from growing)
 elem.property(elem.DEFAULT_PT_YEST, "Create", function(i, x, y, t, v)
