@@ -4440,7 +4440,7 @@ event.register(event.tick, function()
 	if resetNukeScreenflash > 0 then
 		graphics.fillRect(0, 0, sim.XRES, sim.YRES, 255, 255, 127, resetNukeScreenflash * 10)
 	end
-end)  
+end)
 event.register(event.aftersim, function(a, b, c, d)
 	if resetNukeScreenflash > 0 then
 		resetNukeScreenflash = resetNukeScreenflash - 1
@@ -6265,10 +6265,12 @@ elem.property(mpls, "LowTemperatureTransition", plst)
 -- elem.property(mpls, "HighTemperatureTransition", elem.DEFAULT_PT_GAS)
 elem.property(mpls, "Update", function(i, x, y, s, n)
 	local temp = sim.partProperty(i, "temp")
-	local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
-
-	sim.partProperty(i, "vx", sim.partProperty(i, "vx") * meltiness) 
-	sim.partProperty(i, "vy", sim.partProperty(i, "vy") * meltiness)
+	-- You're very unlikely to need to move if you're surrounded on all sides
+	if n > 0 then
+		local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") * meltiness) 
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") * meltiness)
+	end
 
 	if temp > plstVars.decompose then
 		if math.random() > 0.5 then
@@ -6292,12 +6294,13 @@ elem.property(mpls, "Graphics", function (i, r, g, b)
 	return 0,pixel_mode,255,colr,colg,colb,255,colr,colg,colb;
 end)
 
--- elem.property(mpls, "ChangeType", function(i, x, y, t1, t2)
--- 	if t2 == elem.DEFAULT_PT_GAS then -- You're decomposing
--- 		print(t1, t2)
--- 		return false
--- 	end
--- end)
+elem.property(mpls, "ChangeType", function(i, x, y, t1, t2)
+	if t2 == plst then
+		-- Prevent plastic from deforming instantly when solidified
+		sim.partProperty(i, "vx", 0)
+		sim.partProperty(i, "vy", 0)
+	end
+end)
 
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
