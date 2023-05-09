@@ -257,6 +257,8 @@ local function floodFill(x, y, condition, action)
 	until (#pstack == 0)
 end
 
+do -- Start of SMDB scope
+
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
 elem.property(smdb, "Name", "SMDB")
 elem.property(smdb, "Description", "Super mega death bomb. Can destroy literally anything, including walls.")
@@ -275,7 +277,7 @@ elem.property(smdb, "Update", function(i, x, y, s, n)
 				boom = true
 				goto done
 			end
-
+			
 			local wx, wy = math.floor((x + cx) / 4), math.floor((y + cy) / 4)
 			if solidWalls[tpt.get_wallmap(wx, wy)] == true then
 				-- print("Wall death: " .. tpt.get_wallmap(wx, wy))
@@ -284,17 +286,15 @@ elem.property(smdb, "Update", function(i, x, y, s, n)
 			end
 		end
 	end
-
+	
 	::done::
-
+	
 	if boom then
 		sim.partKill(i)
 		for j=0,30 do
 			local rad = sim.partCreate(-3, x, y, srad)
 		end
 	end
-	
-	
 end)
 
 local useMapCoords = false -- Future-proofing in case simulation.createWallBox is changed to use map instead of part coordinates
@@ -305,9 +305,9 @@ local function spawnSradJunk(x, y, isWall)
 		local old = sim.pmap(x, y)
 		sim.partKill(old)
 	end
-
+	
 	local r1 = math.random()
-
+	
 	if r1 > 0.99 then
 		sim.partCreate(-1, x, y, smdb)
 	elseif r1 > 0.97 then
@@ -331,8 +331,6 @@ local function spawnSradJunk(x, y, isWall)
 	else
 		sim.partCreate(-1, x, y, elem.DEFAULT_PT_PLSM)
 	end
-
-
 end
 
 elem.element(srad, elem.element(elem.DEFAULT_PT_PROT))
@@ -402,7 +400,9 @@ elem.property(elem.DEFAULT_PT_CONV, "Update", function(i, x, y, s, n)
 end
 , 2)
 
+end -- End oF SMDB scope
 
+do -- Start of TRIT scope
 elem.element(trit, elem.element(elem.DEFAULT_PT_HYGN))
 elem.property(trit, "Name", "TRIT")
 elem.property(trit, "Description", "Tritium. Radioactive gas. Created by firing neutrons at LITH. Can fuse with DEUT.")
@@ -455,7 +455,6 @@ local function tritupdate(i, x, y, s, n)
 end
 	
 elem.property(trit, "Update", tritupdate)
-
 
 elements.property(trit, "Graphics", function (i, r, g, b)
 	
@@ -548,7 +547,9 @@ elem.property(elem.DEFAULT_PT_NEUT, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+end -- End of TRIT scope
 
+do -- Start of FFLD scope
 local oldModeFormatMap = {
 	[0x00000000] = 0x000,
 	[0x01000000] = 0x100,
@@ -1364,8 +1365,9 @@ event.register(event.mouseup, function(x, y, button, reason)
 	shiftTriangleHold = false
 	shiftTriangleID = -1
 end)
+end -- End of FFLD scope
 
-
+do -- Start of GRPH scope
 local graphiteIgniters = {
 	[elem.DEFAULT_PT_FIRE] = true,
 	[elem.DEFAULT_PT_PLSM] = true,
@@ -1848,7 +1850,9 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+end -- Start of GRPH scope
 
+do -- Start of MELT scope
 local waters = {
 	[elem.DEFAULT_PT_WATR] = true,
 	[elem.DEFAULT_PT_DSTW] = true,
@@ -2069,7 +2073,9 @@ elem.property(mlva, "Graphics", function (i, r, g, b)
 
 	return 1,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
+end -- End of MELT scope
 
+do -- Start of MEND scope
 -- Life is unused for conduction reasons
 -- pavg0: Returning coefficient. Increases when the particle is heated and not at its desired position, causing it to return to it.
 -- tmp: Desired x position
@@ -2156,8 +2162,10 @@ elem.property(mmry, "Graphics", function (i, r, g, b)
 end)
 
 sim.can_move(mmry, mmry, 1)
--- sim.can_move(mmry, lava, 0)
+end -- Start of MELT scope
 
+
+do -- Start of HALO scope
 -- -# means special interaction
 local halogenReactions = {
 	[elem.DEFAULT_PT_RBDM] = elem.DEFAULT_PT_SALT,
@@ -2527,9 +2535,9 @@ elem.property(pflr, "Graphics", florGraphics)
 
 sim.can_move(elem.DEFAULT_PT_PHOT, flor, 2)
 sim.can_move(elem.DEFAULT_PT_PHOT, pflr, 2)
+end -- Start of HALO scope
 
-
-
+do -- Start of NO32 scope
 -- https://www.gabrielgambetta.com/computer-graphics-from-scratch/07-filled-triangles.html
 local function interpolate(i0, d0, i1, d1)
 	if i0 == i1 then
@@ -3962,7 +3970,9 @@ event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 		return false
 	end
 end)  
+end -- End of NO32 scope
 
+do -- Start of LNCR scope
 local basicDirectionTable = {
 	{225, 180, 135},
 	{270, 0, 90},
@@ -4120,7 +4130,12 @@ elem.property(lncr, "CtypeDraw", function(i, t)
 		sim.partProperty(i, "ctype", t)
 	end
 end)
+end -- End of LNCR scope
 
+-- This is accessed by other elements
+local bulletTypeFunctions
+
+do -- Start of AMMO scope
 local bulletImmune = {
 	[elem.DEFAULT_PT_DMND] = true,
 	[elem.DEFAULT_PT_VIBR] = true,
@@ -4212,7 +4227,7 @@ local bulletTypeInfo = {
 	[fngs] = {false, -1, nil, nil, nil, nil, 5},
 }
 
-local bulletTypeFunctions = {
+bulletTypeFunctions = {
 	[elem.DEFAULT_PT_DRAY] = function(i)
 		if math.random() > 0.5 then -- DRAY bomb
 			sim.partProperty(i, "type", elem.DEFAULT_PT_SPRK)
@@ -4435,7 +4450,9 @@ elem.property(shot, "CtypeDraw", function(i, t)
 end)
 
 sim.can_move(shot, elem.DEFAULT_PT_EMBR, 2)
+end -- End of AMMO scope
 
+do -- Start of RSET scope
 local resetNukeScreenflash = 0
 
 event.register(event.tick, function()
@@ -4599,9 +4616,9 @@ event.register(event.mousedown, function(x, y, button)
 		return false
 	end
 end) 
+end -- End of RSET scope
 
--- elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
-
+do -- Start of FUEL scope
 local partCheckProportion = 0.04
 
 event.register(event.aftersim, function()
@@ -4707,13 +4724,10 @@ elem.property(fuel, "Update", function(i, x, y, s, n)
 			end
 		end
 	end
-
-	-- if sim.partProperty(i, "vx") ^ 2 + sim.partProperty(i, "vy") ^ 2 < 32 and neigh > 3 then
-	-- 	sim.partProperty(i, "x", x) 
-	-- 	sim.partProperty(i, "y", y)
-	-- end
 end)
+end -- End of FUEL scope
 
+do -- Start of COPP scope
 local copperOxidizationLimit = 20
 local copperSuperconductTemp = 35 -- Superconductance temperature of LBCO, a superconductor partly made of copper
 
@@ -4854,8 +4868,6 @@ else
 	end)
 end
 
-
-
 elem.property(copp, "Graphics", function (i, r, g, b)
 	pr, pg, pb = 87, 178, 90 -- Patina RGB
 	local oxidization = sim.partProperty(i, "tmp") / copperOxidizationLimit
@@ -4873,7 +4885,6 @@ elem.property(copp, "Graphics", function (i, r, g, b)
 	b * (1 - oxidization) + pb * oxidization,
 	firea,0,0,255;
 end)
-
 
 local cusoAbsorbable = {
 	[elem.DEFAULT_PT_WATR] = true,
@@ -5001,8 +5012,9 @@ local function cusoGraphics(i, r, g, b)
 end
 elem.property(cuso, "Graphics", cusoGraphics)
 elem.property(brcs, "Graphics", cusoGraphics)
+end -- End of COPP scope
 
-
+do -- Start of STGM scope
 local stgmImmune = {
 	[stgm] = true,
 	[elem.DEFAULT_PT_DMND] = true,
@@ -5151,8 +5163,9 @@ elem.property(elem.DEFAULT_PT_PROT, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+end -- End of STGM scope
 
-local fngsVars = {}
+do -- Start of FNGS scope
 
 local primInhibitModes = {
 	[0x1] = true,
@@ -5392,16 +5405,16 @@ function debugMushroomGeneVals()
 	end
 end
 
-fngsVars.GENE_STEMHEIGHT = 1
-fngsVars.GENE_CAPRADIUS = 2
-fngsVars.GENE_CAPHEIGHT = 3
-fngsVars.GENE_PRIMINVESTMENT = 4
-fngsVars.GENE_CAPBOTTOMSHAPE = 5
-fngsVars.GENE_CAPALGO_FLATNESS = 6
-fngsVars.GENE_CAPALGO_THETA = 7
-fngsVars.GENE_CAPALGO_WIDTH = 8
+local GENE_STEMHEIGHT = 1
+local GENE_CAPRADIUS = 2
+local GENE_CAPHEIGHT = 3
+local GENE_PRIMINVESTMENT = 4
+local GENE_CAPBOTTOMSHAPE = 5
+local GENE_CAPALGO_FLATNESS = 6
+local GENE_CAPALGO_THETA = 7
+local GENE_CAPALGO_WIDTH = 8
 
-fngsVars.defaultGenomes = {
+local defaultGenomes = {
 	-- "Fly agaric" (Amanita muscaria)
 	{ {8, 12, 6, 4, 0, 20, 30, 0}, {0, 6, 0, 0, 0, 1, 1, 1, 0, 0, 1, 2, 0} },
 	-- "Pink bonnet" (Marasmius haematocephalus)
@@ -5508,11 +5521,11 @@ local shroomImpenetrable = {
 
 -- This was a bug in an earlier version of FNGS that I've decided to reimplement as a "secret feature"
 randomMode = false
-function fngsVars.getRandomMushroomGenome()
+function getRandomMushroomGenome()
 	if randomMode then
 		return math.random(0, 0x7FFFFFFF), math.random(0, 0x7FFFFFFF)
 	else
-		local species = fngsVars.defaultGenomes[math.random(#fngsVars.defaultGenomes)]
+		local species = defaultGenomes[math.random(#defaultGenomes)]
 		return packFungusGenome(species[1]), packFungusVisualGenome(species[2])
 	end
 end
@@ -5539,7 +5552,7 @@ elem.property(fngs, "Colour", 0xDAD2B4)
 elem.property(fngs, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS)
 elem.property(fngs, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a clump of new mycelium
-		local g, vg = fngsVars.getRandomMushroomGenome()
+		local g, vg = getRandomMushroomGenome()
 		sim.partProperty(i, "ctype", g)
 		sim.partProperty(i, "tmp4", vg)
 
@@ -5552,7 +5565,7 @@ end)
 
 bulletTypeFunctions[fngs] = function(i)
 	sim.partChangeType(i, spor)
-	local species = fngsVars.defaultGenomes[math.random(#fngsVars.defaultGenomes)]
+	local species = defaultGenomes[math.random(#defaultGenomes)]
 	sim.partProperty(i, "ctype", packFungusGenome(species[1]))
 	sim.partProperty(i, "tmp4", packFungusVisualGenome(species[2]))
 end
@@ -5594,7 +5607,7 @@ elem.property(spor, "Weight", 80)
 elem.property(spor, "MenuSection", -1)
 elem.property(spor, "Create", function(i, x, y, t, v)
 	if v == 0 then -- When manually placed, create a random genome
-		local g, vg = fngsVars.getRandomMushroomGenome()
+		local g, vg = getRandomMushroomGenome()
 		sim.partProperty(i, "ctype", g)
 		sim.partProperty(i, "tmp4", vg)
 	else
@@ -5724,7 +5737,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			-- Primordia die if all fungus supporting them dies
 			if n == 8 then
 				sim.partKill(i)
-			elseif water > 4 * (geneVals[fngsVars.GENE_PRIMINVESTMENT] + 1) ^ 2 then
+			elseif water > 4 * (geneVals[GENE_PRIMINVESTMENT] + 1) ^ 2 then
 				sim.partProperty(i, "tmp", 0x8 + 0x2)
 				water = water * 40 -- Water has a very different value inside a mushroom
 			elseif s > 1 then -- Do not try to grow if it is pointless and stupid
@@ -5742,9 +5755,9 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			if growing and water > 20 then
 				local reach = sim.partProperty(i, "tmp2")
 
-				if reach > geneVals[fngsVars.GENE_STEMHEIGHT] then
+				if reach > geneVals[GENE_STEMHEIGHT] then
 					-- Cap growth
-					local capReach = reach - geneVals[fngsVars.GENE_STEMHEIGHT]
+					local capReach = reach - geneVals[GENE_STEMHEIGHT]
 					local radius = unweaveFungusRadius(sim.partProperty(i, "tmp3"))
 					local growUp = false
 					local nx, ny = x, y
@@ -5777,19 +5790,19 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						sim.partKill(capObstacle)
 					end
 
-					local newRadius = (math.abs(radius) + math.abs(nx - x)) / geneVals[fngsVars.GENE_CAPRADIUS]
+					local newRadius = (math.abs(radius) + math.abs(nx - x)) / geneVals[GENE_CAPRADIUS]
 					local newReach = capReach + math.abs(ny - y)
 
-					local upCurve = newRadius ^ 2 * 2 * geneVals[fngsVars.GENE_CAPBOTTOMSHAPE]
+					local upCurve = newRadius ^ 2 * 2 * geneVals[GENE_CAPBOTTOMSHAPE]
 
-					local a, b, c, d = shroomAlgoParamsToCoefficients(geneVals[fngsVars.GENE_CAPALGO_FLATNESS], geneVals[fngsVars.GENE_CAPALGO_THETA], geneVals[fngsVars.GENE_CAPALGO_WIDTH])
+					local a, b, c, d = shroomAlgoParamsToCoefficients(geneVals[GENE_CAPALGO_FLATNESS], geneVals[GENE_CAPALGO_THETA], geneVals[GENE_CAPALGO_WIDTH])
 					local capCurve = shroomCapCurveScaled(newRadius, a, b, c, d)
 					-- print(capCurve)
 					local stopGrowing = false
 					if 
-						(newReach < geneVals[fngsVars.GENE_CAPHEIGHT] + upCurve) 
-						and (math.abs(radius) + math.abs(nx - x) < geneVals[fngsVars.GENE_CAPRADIUS]) 
-						and newReach < capCurve * geneVals[fngsVars.GENE_CAPHEIGHT] + upCurve
+						(newReach < geneVals[GENE_CAPHEIGHT] + upCurve) 
+						and (math.abs(radius) + math.abs(nx - x) < geneVals[GENE_CAPRADIUS]) 
+						and newReach < capCurve * geneVals[GENE_CAPHEIGHT] + upCurve
 						and newReach > upCurve then
 						-- Spots will always be calculated so that visual genome does not need to be decoded in update routine
 						local newSpot = math.random(8) == 1 and 0x100 or 0x000
@@ -5830,8 +5843,8 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 
 					if stopGrowing then 
 						-- Small shrooms are purely spore-bearing and very delicate
-						local tinyShroom = (geneVals[fngsVars.GENE_CAPHEIGHT] < 3) or geneVals[fngsVars.GENE_CAPRADIUS] < 2
-						if tinyShroom or (capReach * 1.5 < capCurve * geneVals[fngsVars.GENE_CAPHEIGHT] + upCurve) then
+						local tinyShroom = (geneVals[GENE_CAPHEIGHT] < 3) or geneVals[GENE_CAPRADIUS] < 2
+						if tinyShroom or (capReach * 1.5 < capCurve * geneVals[GENE_CAPHEIGHT] + upCurve) then
 							sim.partProperty(i, "tmp", spot + 0xF0 + 0x3) -- Hymenium
 						else
 							sim.partProperty(i, "tmp", spot + 0xF0 + 0x2) -- Flesh
@@ -5855,7 +5868,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 						water = 15
 
 						sim.partProperty(i, "tmp", 0x2)
-						if reach + 1 > geneVals[fngsVars.GENE_STEMHEIGHT] then
+						if reach + 1 > geneVals[GENE_STEMHEIGHT] then
 							sim.partProperty(child, "tmp3", 0)
 						else
 							sim.partProperty(child, "tmp3", (changle / math.pi * 1800) % 3600)
@@ -5930,9 +5943,9 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 		else -- Surface mycelium (may form mushrooms)
 			if growing and math.random(500) == 1 and s > 1 then
 				local canBecomePrim = true
-				-- geneVals[fngsVars.GENE_PRIMINVESTMENT] = 10 -- TEMP
+				-- geneVals[local GENE_PRIMINVESTMENT] = 10 -- TEMP
 				-- Fungi that invest more into each prim should create fewer prims
-				local adjFungus = sim.partNeighbours(x, y, geneVals[fngsVars.GENE_PRIMINVESTMENT] * 2, fngs)
+				local adjFungus = sim.partNeighbours(x, y, geneVals[GENE_PRIMINVESTMENT] * 2, fngs)
 				for j,k in pairs(adjFungus) do
 					local adjTmp = sim.partProperty(k, "tmp")
 					local adjMode = bit.band(adjTmp, 0x7)
@@ -5957,7 +5970,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			local pMode = bit.band(sim.partProperty(p, "tmp"), 0x7)
 			if stateLifeSharing[mode] and stateLifeSharing[mode][pMode] then
 				local reach = sim.partProperty(i, "tmp2")
-				if mode ~= 0x2 or reach > geneVals[fngsVars.GENE_STEMHEIGHT] then -- Stems shouldn't hog all the resources
+				if mode ~= 0x2 or reach > geneVals[GENE_STEMHEIGHT] then -- Stems shouldn't hog all the resources
 					local pWater = sim.partProperty(p, "life")
 					local waterDiff = math.floor((water - pWater) / 2)
 					water = water - waterDiff
@@ -6010,21 +6023,21 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 	end
 end)
 
-fngsVars.VGENE_CAPHUE = 1
-fngsVars.VGENE_CAPHUE2 = 2
-fngsVars.VGENE_CAPSATVAL1 = 3
-fngsVars.VGENE_CAPSATVAL2 = 4
-fngsVars.VGENE_BIOLUMINESCENT = 5
-fngsVars.VGENE_SPOTS = 6
-fngsVars.VGENE_RIDGEHEIGHT = 7
-fngsVars.VGENE_STEMWIDTH = 8
-fngsVars.VGENE_STEMCOLOR = 9
-fngsVars.VGENE_STEMSATVAL = 10
-fngsVars.VGENE_GRADIENTLEVEL = 11
-fngsVars.VGENE_GRADIENTSIZE = 12
-fngsVars.VGENE_GRADIENTCURVE = 13
+local VGENE_CAPHUE = 1
+local VGENE_CAPHUE2 = 2
+local VGENE_CAPSATVAL1 = 3
+local VGENE_CAPSATVAL2 = 4
+local VGENE_BIOLUMINESCENT = 5
+local VGENE_SPOTS = 6
+local VGENE_RIDGEHEIGHT = 7
+local VGENE_STEMWIDTH = 8
+local VGENE_STEMCOLOR = 9
+local VGENE_STEMSATVAL = 10
+local VGENE_GRADIENTLEVEL = 11
+local VGENE_GRADIENTSIZE = 12
+local VGENE_GRADIENTCURVE = 13
 
-fngsVars.fungusSatValTable = {
+local fungusSatValTable = {
 	{0.9, 0.9},
 	{0.5, 0.9},
 	{0.1, 0.9},
@@ -6035,21 +6048,21 @@ fngsVars.fungusSatValTable = {
 	{0.9, 0.5},
 }
 
-fngsVars.ridgeHeightMultipliers = {
+local ridgeHeightMultipliers = {
 	-- This table will never be indexed by zero, so Lua's one-indexing can be used without adjusting the value from genome
 	4,
 	2,
 	4 / 3,
 }
 
-fngsVars.shroomGlowColors = {
+local shroomGlowColors = {
 	-- Ditto
 	{0, 255, 12},
 	{0, 255, 120},
 	{0, 255, 255},
 }
 
-fngsVars.stipeColors = {
+local stipeColors = {
 	function(h, s, v)
 		return hsvToRgb(0, 0, v)
 	end,
@@ -6091,7 +6104,7 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 		local visualGenes = unpackFungusVisualGenome(visualGenome)
 
 		local reach = sim.partProperty(i, "tmp2")
-		local capReach = reach - geneVals[fngsVars.GENE_STEMHEIGHT]
+		local capReach = reach - geneVals[GENE_STEMHEIGHT]
 		local radius = math.abs(unweaveFungusRadius(sim.partProperty(i, "tmp3")))
 
 		
@@ -6101,31 +6114,31 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 		-- end
 
 		local spot = bit.band(tmp, 0x100)
-		if capReach > 0 and not (visualGenes[fngsVars.VGENE_SPOTS] == 1 and spot == 0x100) then
-			local capReachScaled = capReach / geneVals[fngsVars.GENE_CAPHEIGHT]
+		if capReach > 0 and not (visualGenes[VGENE_SPOTS] == 1 and spot == 0x100) then
+			local capReachScaled = capReach / geneVals[GENE_CAPHEIGHT]
 
-			if visualGenes[fngsVars.VGENE_GRADIENTCURVE] == 1 then
-				capReachScaled = capReachScaled - (radius / geneVals[fngsVars.GENE_CAPRADIUS]) ^ 2 * 2 * geneVals[fngsVars.GENE_CAPBOTTOMSHAPE] / geneVals[fngsVars.GENE_CAPHEIGHT]
+			if visualGenes[VGENE_GRADIENTCURVE] == 1 then
+				capReachScaled = capReachScaled - (radius / geneVals[GENE_CAPRADIUS]) ^ 2 * 2 * geneVals[GENE_CAPBOTTOMSHAPE] / geneVals[GENE_CAPHEIGHT]
 			end
 
-			local capGradientBlend = clamp((capReachScaled - (visualGenes[fngsVars.VGENE_GRADIENTLEVEL]) / 7) * ((visualGenes[fngsVars.VGENE_GRADIENTSIZE] + 1) / 1), 0, 1)
-			local r1, g1, b1 = hsvToRgb(visualGenes[fngsVars.VGENE_CAPHUE] / 16 * 360, fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_CAPSATVAL1] + 1][1], fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_CAPSATVAL1] + 1][2])
-			local r2, g2, b2 = hsvToRgb((visualGenes[fngsVars.VGENE_CAPHUE] + (visualGenes[fngsVars.VGENE_CAPHUE2] - 3.5) * 2 / 3) / 16 * 360, fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_CAPSATVAL2] + 1][1], fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_CAPSATVAL2] + 1][2])
+			local capGradientBlend = clamp((capReachScaled - (visualGenes[VGENE_GRADIENTLEVEL]) / 7) * ((visualGenes[VGENE_GRADIENTSIZE] + 1) / 1), 0, 1)
+			local r1, g1, b1 = hsvToRgb(visualGenes[VGENE_CAPHUE] / 16 * 360, fungusSatValTable[visualGenes[VGENE_CAPSATVAL1] + 1][1], fungusSatValTable[visualGenes[VGENE_CAPSATVAL1] + 1][2])
+			local r2, g2, b2 = hsvToRgb((visualGenes[VGENE_CAPHUE] + (visualGenes[VGENE_CAPHUE2] - 3.5) * 2 / 3) / 16 * 360, fungusSatValTable[visualGenes[VGENE_CAPSATVAL2] + 1][1], fungusSatValTable[visualGenes[VGENE_CAPSATVAL2] + 1][2])
 
 			colr, colg, colb =
 				r1 * capGradientBlend + r2 * (1 - capGradientBlend),
 				g1 * capGradientBlend + g2 * (1 - capGradientBlend),
 				b1 * capGradientBlend + b2 * (1 - capGradientBlend)
 
-			if visualGenes[fngsVars.VGENE_RIDGEHEIGHT] > 0 and radius % 2 == 0 then
-				local darken = math.min(capReachScaled * fngsVars.ridgeHeightMultipliers[visualGenes[fngsVars.VGENE_RIDGEHEIGHT]], 1) * 0.5 + 0.5
+			if visualGenes[VGENE_RIDGEHEIGHT] > 0 and radius % 2 == 0 then
+				local darken = math.min(capReachScaled * ridgeHeightMultipliers[visualGenes[VGENE_RIDGEHEIGHT]], 1) * 0.5 + 0.5
 				colr, colg, colb = colr * darken, colg * darken, colb * darken
 			end
-			-- colr, colg, colb = radius / geneVals[fngsVars.GENE_CAPRADIUS] * 255, 0, capReach / geneVals[fngsVars.GENE_CAPHEIGHT] * 255
+			-- colr, colg, colb = radius / geneVals[GENE_CAPRADIUS] * 255, 0, capReach / geneVals[GENE_CAPHEIGHT] * 255
 		else
-			local stemWidth = geneVals[fngsVars.GENE_CAPRADIUS] * visualGenes[fngsVars.VGENE_STEMWIDTH] / 6 + 1
-			-- print(visualGenes[fngsVars.VGENE_STEMCOLOR])
-			colr, colg, colb = fngsVars.stipeColors[visualGenes[fngsVars.VGENE_STEMCOLOR] + 1](visualGenes[fngsVars.VGENE_CAPHUE] / 16 * 360, fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_STEMSATVAL] + 1][1], fngsVars.fungusSatValTable[visualGenes[fngsVars.VGENE_STEMSATVAL] + 1][2])
+			local stemWidth = geneVals[GENE_CAPRADIUS] * visualGenes[VGENE_STEMWIDTH] / 6 + 1
+			-- print(visualGenes[VGENE_STEMCOLOR])
+			colr, colg, colb = stipeColors[visualGenes[VGENE_STEMCOLOR] + 1](visualGenes[VGENE_CAPHUE] / 16 * 360, fungusSatValTable[visualGenes[VGENE_STEMSATVAL] + 1][1], fungusSatValTable[visualGenes[VGENE_STEMSATVAL] + 1][2])
 
 			if capReach <= 0 then
 				local x, y = sim.partPosition(i)
@@ -6133,8 +6146,8 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 			end
 		end
 	
-		if visualGenes[fngsVars.VGENE_BIOLUMINESCENT] > 0 then
-			local glowColor = fngsVars.shroomGlowColors[visualGenes[fngsVars.VGENE_BIOLUMINESCENT]]
+		if visualGenes[VGENE_BIOLUMINESCENT] > 0 then
+			local glowColor = shroomGlowColors[visualGenes[VGENE_BIOLUMINESCENT]]
 			firer, fireg, fireb = glowColor[1], glowColor[2], glowColor[3]
 			firea = 7
 		end
@@ -6150,30 +6163,30 @@ elem.property(fngs, "Graphics", function (i, r, g, b)
 
 	return 0, pixel_mode, 255, colr, colg, colb, firea, firer, fireg, fireb;
 end)
+end -- End of FNGS scope
 
-local plstVars = {
-	deformLowTemp = 333,
-	deformTempRange = 40,
-	deformCoefficient = 0.1,
-	plexDeformCoefficient = 0.05,
-	meltLowTemp = 373,
-	meltTempRange = 100,
-	decompose = 623, -- 350C 
-	explodePlex = function(i, x, y, dx, dy)
-		-- sim.partKill(i)
-		if math.random() > 0.5 then
-			sim.partCreate(i, x, y, elem.DEFAULT_PT_PLSM)
-		else
-			sim.partCreate(i, x, y, elem.DEFAULT_PT_EMBR)
-		end
-		sim.partProperty(i, "temp", 5000)
-		sim.partProperty(i, "vx", math.random() - 0.5)
-		sim.partProperty(i, "vy", math.random() - 0.5)
-		sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 1.5)
-		sim.velocityX(x/4, y/4, 1, 1, sim.velocityX(x/4, y/4) - dx * 2.0)
-		sim.velocityY(x/4, y/4, 1, 1, sim.velocityY(x/4, y/4) - dy * 2.0)
-	end,
-}
+local deformLowTemp = 333
+local deformTempRange = 40
+local deformCoefficient = 0.1
+local plexDeformCoefficient = 0.05
+local meltLowTemp = 373
+local meltTempRange = 100
+local decompose = 623 -- 350C 
+local function explodePlex(i, x, y, dx, dy)
+	if math.random() > 0.5 then
+		sim.partCreate(i, x, y, elem.DEFAULT_PT_PLSM)
+	else
+		sim.partCreate(i, x, y, elem.DEFAULT_PT_EMBR)
+	end
+	sim.partProperty(i, "temp", 5000)
+	sim.partProperty(i, "vx", math.random() - 0.5)
+	sim.partProperty(i, "vy", math.random() - 0.5)
+	sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 1.5)
+	sim.velocityX(x/4, y/4, 1, 1, sim.velocityX(x/4, y/4) - dx * 2.0)
+	sim.velocityY(x/4, y/4, 1, 1, sim.velocityY(x/4, y/4) - dy * 2.0)
+end
+
+do -- Start of PLST scope
 
 -- PLST is specifically a blend of the properties of various types of plastic as well as petroleum products
 -- Specifically, the three most common types of plastic: polyethylene (PE), polypropylene (PP), and polyvinyl chloride (PVC)
@@ -6189,17 +6202,17 @@ elem.property(plst, "Weight", 100)
 elem.property(plst, "Colour", 0x15B535)
 elem.property(plst, "Hardness", 0)
 elem.property(plst, "Properties", elem.TYPE_SOLID + elem.PROP_NEUTPASS)
-elem.property(plst, "HighTemperature", plstVars.meltLowTemp)
+elem.property(plst, "HighTemperature", meltLowTemp)
 elem.property(plst, "HighTemperatureTransition", mpls)
 elem.property(plst, "HeatConduct", 20)
 elem.property(plst, "Update", function(i, x, y, s, n)
 	local temp = sim.partProperty(i, "temp")
-	local deform = clamp((temp - plstVars.deformLowTemp) / plstVars.deformTempRange, 0, 1) 
+	local deform = clamp((temp - deformLowTemp) / deformTempRange, 0, 1) 
 	local velx = sim.velocityX(x / 4, y / 4)
 	local vely = sim.velocityY(x / 4, y / 4)
 	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.1 then
-		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + deform * plstVars.deformCoefficient * velx)
-		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + deform * plstVars.deformCoefficient * vely)
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + deform * deformCoefficient * velx)
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + deform * deformCoefficient * vely)
 	end
 
 	local rad = sim.photons(x, y)
@@ -6233,7 +6246,7 @@ elem.property(plex, "Update", function(i, x, y, s, n)
 					local part = sim.pmap(x1, y1)
 					local distance = math.sqrt((x - x1) ^ 2 + (y - y1) ^ 2)
 					local dx, dy = (x - x1) / distance, (y - y1) / distance
-					plstVars.explodePlex(part, x1, y1, dx, dy)
+					explodePlex(part, x1, y1, dx, dy)
 				end)
 			break
 		end
@@ -6243,8 +6256,8 @@ elem.property(plex, "Update", function(i, x, y, s, n)
 	local velx = sim.velocityX(x / 4, y / 4)
 	local vely = sim.velocityY(x / 4, y / 4)
 	if math.sqrt(velx ^ 2 + vely ^ 2) > 0.3 then
-		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + plstVars.plexDeformCoefficient * velx)
-		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + plstVars.plexDeformCoefficient * vely)
+		sim.partProperty(i, "vx", sim.partProperty(i, "vx") + plexDeformCoefficient * velx)
+		sim.partProperty(i, "vy", sim.partProperty(i, "vy") + plexDeformCoefficient * vely)
 	end
 end)
 
@@ -6260,21 +6273,21 @@ elem.property(mpls, "Weight", 100)
 elem.property(mpls, "Colour", 0x81BE60)
 elem.property(mpls, "Hardness", 0)
 elem.property(mpls, "Properties", elem.TYPE_LIQUID)
-elem.property(mpls, "Temperature", plstVars.meltLowTemp + plstVars.meltTempRange)
-elem.property(mpls, "LowTemperature", plstVars.meltLowTemp)
+elem.property(mpls, "Temperature", meltLowTemp + meltTempRange)
+elem.property(mpls, "LowTemperature", meltLowTemp)
 elem.property(mpls, "LowTemperatureTransition", plst)
--- elem.property(mpls, "HighTemperature", plstVars.decompose)
+-- elem.property(mpls, "HighTemperature", decompose)
 -- elem.property(mpls, "HighTemperatureTransition", elem.DEFAULT_PT_GAS)
 elem.property(mpls, "Update", function(i, x, y, s, n)
 	local temp = sim.partProperty(i, "temp")
 	-- You're very unlikely to need to move if you're surrounded on all sides
 	if n > 0 then
-		local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
+		local meltiness = clamp((temp - meltLowTemp) / meltTempRange, 0, 1) 
 		sim.partProperty(i, "vx", sim.partProperty(i, "vx") * meltiness) 
 		sim.partProperty(i, "vy", sim.partProperty(i, "vy") * meltiness)
 	end
 
-	if temp > plstVars.decompose then
+	if temp > decompose then
 		if math.random() > 0.5 then
 			sim.partChangeType(i, halo)
 		else
@@ -6287,7 +6300,7 @@ end)
 
 elem.property(mpls, "Graphics", function (i, r, g, b)
 	local temp = sim.partProperty(i, "temp")
-	local meltiness = clamp((temp - plstVars.meltLowTemp) / plstVars.meltTempRange, 0, 1) 
+	local meltiness = clamp((temp - meltLowTemp) / meltTempRange, 0, 1) 
 	local colr, colg, colb = graphics.getColors(0x15B535)
 	colr, colg, colb = r * meltiness + colr * (1 - meltiness), g * meltiness + colg * (1 - meltiness), b * meltiness + colb * (1 - meltiness)
 	-- local colr, colg, colb = r, g, b
@@ -6303,8 +6316,9 @@ elem.property(mpls, "ChangeType", function(i, x, y, t1, t2)
 		sim.partProperty(i, "vy", 0)
 	end
 end)
+end -- End of PLST scope
 
-
+do -- Start of WICK scope
 local wickAbsorbable = {
 	[elem.DEFAULT_PT_OIL] = true,
 	[elem.DEFAULT_PT_NITR] = true,
@@ -6320,6 +6334,11 @@ local wickAbsorbable = {
 	[elem.DEFAULT_PT_ISOZ] = true,
 	[elem.DEFAULT_PT_EXOT] = true,
 	[fuel] = true,
+}
+local wickIgniters = {
+	[elem.DEFAULT_PT_FIRE] = true,
+	[elem.DEFAULT_PT_PLSM] = true,
+	[elem.DEFAULT_PT_LIGH] = true,
 }
 local wickMaxFuel = 2000
 local wickFuelPerPart = 1000
@@ -6385,9 +6404,9 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 
 	local tmp = sim.partProperty(i, "tmp")
 	if tmp == 0 then
-		if math.random(1, 8) == 1 then
+		if s ~= n and math.random(1, 8) == 1 then
 			local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
-			if randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+			if randomNeighbor ~= nil and (wickIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
 				sim.partProperty(i, "tmp", 1)
 			end
 		end
@@ -6415,7 +6434,6 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 	sim.partProperty(i, "life", life)
 end)
 
-
 elem.property(wick, "Graphics", function (i, r, g, b)
 	local x, y = sim.partPosition(i)
 	local life = sim.partProperty(i, "life")
@@ -6437,7 +6455,9 @@ elem.property(wick, "Graphics", function (i, r, g, b)
 		return 0,pixel_mode,255,r,g,b,255,r,g,b;
 	end
 end)
+end -- End of WICK scope
 
+do -- Start of secrets scope
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
 
 local pink = elem.allocate("FanMod", "PINK")
@@ -6471,6 +6491,7 @@ elem.property(pink, "Update", function(i, x, y, s, n)
 	end
 end)
 
+end -- End of secrets scope
 
 end
 FanElements()
