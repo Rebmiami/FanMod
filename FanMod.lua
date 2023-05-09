@@ -1,5 +1,11 @@
 function FanElements()
 
+-- Some old versions did not use fanElemsEnv
+if fanElemsEnv or elem["FANMOD_PT_SMDB"] then
+	print("Fan Elements Script: Please restart the game for updates to take effect.")
+	return
+end
+
 -- Setup environment
 fanElemsEnv = {}
 -- __index = _G makes it so functions from Lua and the TPT API can be accessed with no additional fuss
@@ -9,59 +15,59 @@ setfenv(1, fanElemsEnv)
 -- pavg0/1 checks have been removed. No longer accomodating old versions
 if not sim.FIELD_TMP3 then
 	print("Fan Elements Script: Please update The Powder Toy to v97.0 or higher.")
+	return
 end
 
 -- Element definitions
+local smdb = elem.allocate("FANMOD", "SMDB") -- Super mega death bomb
+local srad = elem.allocate("FANMOD", "SRAD") -- Hidden. Used by SDMB as part of its explosion
 
-local smdb = elem.allocate("FanMod", "SMDB") -- Super mega death bomb
-local srad = elem.allocate("FanMod", "SRAD") -- Hidden. Used by SDMB as part of its explosion
+local trit = elem.allocate("FANMOD", "TRIT") -- Tritium
+local ltrt = elem.allocate("FANMOD", "LTRT") -- Liquid Tritium. Hidden, created by pressurizing TRIT
 
-local trit = elem.allocate("FanMod", "TRIT") -- Tritium
-local ltrt = elem.allocate("FanMod", "LTRT") -- Liquid Tritium. Hidden, created by pressurizing TRIT
+local ffld = elem.allocate("FANMOD", "FFLD") -- Forcefield generator
 
-local ffld = elem.allocate("FanMod", "FFLD") -- Forcefield generator
+local grph = elem.allocate("FANMOD", "GRPH") -- Graphite
+local bgph = elem.allocate("FANMOD", "BGPH") -- Broken Graphite
 
-local grph = elem.allocate("FanMod", "GRPH") -- Graphite
-local bgph = elem.allocate("FanMod", "BGPH") -- Broken Graphite
+local melt = elem.allocate("FANMOD", "MELT") -- Melt Powder
+local mlva = elem.allocate("FANMOD", "MLVA") -- Melting Lava
 
-local melt = elem.allocate("FanMod", "MELT") -- Melt Powder
-local mlva = elem.allocate("FanMod", "MLVA") -- Melting Lava
+local mmry = elem.allocate("FANMOD", "MMRY") -- Shape Memory Alloy
 
-local mmry = elem.allocate("FanMod", "MMRY") -- Shape Memory Alloy
-
-local halo = elem.allocate("FanMod", "HALO") -- Halogens
-local lhal = elem.allocate("FanMod", "LHAL") -- Liquid halogens
-local fhal = elem.allocate("FanMod", "FHAL") -- Frozen halogens
-local trtw = elem.allocate("FanMod", "BFLR") -- Treated water 
+local halo = elem.allocate("FANMOD", "HALO") -- Halogens
+local lhal = elem.allocate("FANMOD", "LHAL") -- Liquid halogens
+local fhal = elem.allocate("FANMOD", "FHAL") -- Frozen halogens
+local trtw = elem.allocate("FANMOD", "BFLR") -- Treated water 
 -- (Internally referred to as "BFLR" because of an error in an earlier version)
-local flor = elem.allocate("FanMod", "FLOR") -- Fluorite
-local pflr = elem.allocate("FanMod", "PFLR2") -- Powdered fluorite
+local flor = elem.allocate("FANMOD", "FLOR") -- Fluorite
+local pflr = elem.allocate("FANMOD", "PFLR2") -- Powdered fluorite
 
 -- v2 Elements
-local no32 = elem.allocate("FanMod", "NO32") -- Nobili32
+local no32 = elem.allocate("FANMOD", "NO32") -- Nobili32
 
-local lncr = elem.allocate("FanMod", "LNCR") -- Launcher
+local lncr = elem.allocate("FANMOD", "LNCR") -- Launcher
 
-local shot = elem.allocate("FanMod", "SHOT") -- Bullet
+local shot = elem.allocate("FANMOD", "SHOT") -- Bullet
 
-local rset = elem.allocate("FanMod", "RSET") -- Resetter
+local rset = elem.allocate("FANMOD", "RSET") -- Resetter
 
-local fuel = elem.allocate("FanMod", "FUEL") -- Napalm
+local fuel = elem.allocate("FANMOD", "FUEL") -- Napalm
 
-local copp = elem.allocate("FanMod", "COPP") -- Copper
-local cuso = elem.allocate("FanMod", "CUSO") -- Copper(II) sulfate
-local brcs = elem.allocate("FanMod", "BRCS") -- Broken copper(II) sulfate
+local copp = elem.allocate("FANMOD", "COPP") -- Copper
+local cuso = elem.allocate("FANMOD", "CUSO") -- Copper(II) sulfate
+local brcs = elem.allocate("FANMOD", "BRCS") -- Broken copper(II) sulfate
 
-local stgm = elem.allocate("FanMod", "STGM") -- Strange matter
+local stgm = elem.allocate("FANMOD", "STGM") -- Strange matter
 
-local fngs = elem.allocate("FanMod", "FNGS") -- Fungus
-local spor = elem.allocate("FanMod", "SPOR") -- Fungus spore
+local fngs = elem.allocate("FANMOD", "FNGS") -- Fungus
+local spor = elem.allocate("FANMOD", "SPOR") -- Fungus spore
 
-local plst = elem.allocate("FanMod", "PLST") -- Plastic
-local mpls = elem.allocate("FanMod", "MPLS") -- Melted plastic
-local plex = elem.allocate("FanMod", "PLEX") -- Plastic explosive
+local plst = elem.allocate("FANMOD", "PLST") -- Plastic
+local mpls = elem.allocate("FANMOD", "MPLS") -- Melted plastic
+local plex = elem.allocate("FANMOD", "PLEX") -- Plastic explosive
 
-local wick = elem.allocate("FanMod", "WICK") -- Wick
+local wick = elem.allocate("FANMOD", "WICK") -- Wick
 
 -- Utilities
 
