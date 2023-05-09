@@ -61,6 +61,8 @@ local plst = elem.allocate("FanMod", "PLST") -- Plastic
 local mpls = elem.allocate("FanMod", "MPLS") -- Melted plastic
 local plex = elem.allocate("FanMod", "PLEX") -- Plastic explosive
 
+local wick = elem.allocate("FanMod", "WICK") -- Wick
+
 -- Utilities
 
 local mouseButtonType = {
@@ -1706,7 +1708,7 @@ end)
 
 -- life: Used for burn time, similar to coal. At 60, does nothing. Below 60, counts down and emits fire, disappearing at 0.
 -- tmp: Used while burning. Starts at a random value between 11 and 30. Counts down every frame that this particle has no neighbors of the same type. At zero, explodes.
--- pavg1: Speed on the previous frame. Used to calculate if the particle has impacted a surface so that it can draw on it.
+-- tmp4: Speed on the previous frame. Used to calculate if the particle has impacted a surface so that it can draw on it.
 
 elem.element(bgph, elem.element(elem.DEFAULT_PT_DUST))
 elem.property(bgph, "Name", "BGPH")
@@ -3910,8 +3912,8 @@ event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 	
 		stateSelectWindow:onMouseDown(function(x, y, button)
 			for i,j in pairs(stateScreenShapes) do
-				bx = j[2]
-				by = j[3]
+				local bx = j[2]
+				local by = j[3]
 				local bw, bh = buttonSize, buttonSize
 				if x >= bx and y >= by and x <= bx + bw and y <= by + bh then
 					nobiliBrushState = j[1]
@@ -3924,8 +3926,8 @@ event.register(event.keypress, function(key, scan, rep, shift, ctrl, alt)
 
 		stateSelectWindow:onMouseMove(function(x, y, dx, dy)
 			for i,j in pairs(stateScreenShapes) do
-				bx = j[2]
-				by = j[3]
+				local bx = j[2]
+				local by = j[3]
 				local bw, bh = buttonSize, buttonSize
 				if x >= bx and y >= by and x <= bx + bw and y <= by + bh then
 					titleLabel:text(simpleStateNames[j[1] + 1])
@@ -6299,6 +6301,140 @@ elem.property(mpls, "ChangeType", function(i, x, y, t1, t2)
 		-- Prevent plastic from deforming instantly when solidified
 		sim.partProperty(i, "vx", 0)
 		sim.partProperty(i, "vy", 0)
+	end
+end)
+
+
+local wickAbsorbable = {
+	[elem.DEFAULT_PT_OIL] = true,
+	[elem.DEFAULT_PT_NITR] = true,
+	[elem.DEFAULT_PT_LRBD] = true,
+	[elem.DEFAULT_PT_ACID] = true,
+	[elem.DEFAULT_PT_MWAX] = true,
+	[elem.DEFAULT_PT_DESL] = true,
+	[elem.DEFAULT_PT_LOXY] = true,
+	[elem.DEFAULT_PT_GLOW] = true,
+	[elem.DEFAULT_PT_BIZR] = true,
+	[elem.DEFAULT_PT_SOAP] = true,
+	[elem.DEFAULT_PT_DEUT] = true,
+	[elem.DEFAULT_PT_ISOZ] = true,
+	[elem.DEFAULT_PT_EXOT] = true,
+	[fuel] = true,
+}
+local wickMaxFuel = 2000
+local wickFuelPerPart = 1000
+local wickFuelBurnTime = 20
+local wickFuelPerBurnTime = 50
+local wickDryBurnTime = 120 -- Smoldering before decay
+
+-- ctype: Element being wicked.
+-- life: Amount absorbed
+-- tmp: Fire counter
+elem.element(wick, elem.element(elem.DEFAULT_PT_SPNG))
+elem.property(wick, "Name", "WICK")
+elem.property(wick, "Description", "Absorbs flammable liquids then slowly burns them when ignited.")
+elem.property(wick, "Colour", 0xC59DAE)
+elem.property(wick, "Hardness", 0)
+elem.property(wick, "Flammable", 0)
+elem.property(wick, "HeatConduct", 1)
+elem.property(wick, "Properties", elem.TYPE_SOLID)
+elem.property(wick, "Create", function(i, x, y, t, v)
+	sim.partProperty(i, "tmp", 0)
+end)
+elem.property(wick, "Update", function(i, x, y, s, n)
+	local ctype = sim.partProperty(i, "ctype")
+	local life = sim.partProperty(i, "life")
+	if s ~= n and life < wickMaxFuel then
+		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+		if p then
+			local ptype = sim.partProperty(p, "type")
+			if ctype == ptype or (ctype == 0 and wickAbsorbable[ptype]) then
+				sim.partKill(p)
+				life = life + wickFuelPerPart
+				if ctype == 0 then
+					ctype = ptype
+					sim.partProperty(i, "ctype", ctype)
+				end
+			end
+		end
+	end
+	
+	if life > 0 then
+		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+		if p then
+			local ptype = sim.partProperty(p, "type")
+			if ptype == wick then
+				local pctype = sim.partProperty(p, "ctype")
+				if pctype == 0 then
+					sim.partProperty(p, "ctype", ctype)
+					pctype = ctype
+				end
+				if pctype == ctype then
+					local plife = sim.partProperty(p, "life")
+					local lifeDiff = math.ceil((life - plife) / 2)
+					life = life - lifeDiff
+					sim.partProperty(p, "life", plife + lifeDiff)
+				end
+			end
+		end
+	end
+
+	if life == 0 then
+		sim.partProperty(i, "ctype", 0)
+	end
+
+	local tmp = sim.partProperty(i, "tmp")
+	if tmp == 0 then
+		if math.random(1, 8) == 1 then
+			local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
+			if randomNeighbor ~= nil and (graphiteIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+				sim.partProperty(i, "tmp", 1)
+			end
+		end
+	else
+		tmp = tmp + 1
+
+		if life > 0 then
+			sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+			if tmp > wickFuelBurnTime then
+				life = life - wickFuelPerBurnTime
+				tmp = 1
+			end
+		end
+		-- Check again to ensure life has not dropped below zero
+		if life <= 0 then
+			sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_SMKE)
+			if tmp > wickDryBurnTime then
+				sim.partKill(i)
+				return
+			end
+		end
+		sim.partProperty(i, "tmp", tmp)
+	end
+
+	sim.partProperty(i, "life", life)
+end)
+
+
+elem.property(wick, "Graphics", function (i, r, g, b)
+	local x, y = sim.partPosition(i)
+	local life = sim.partProperty(i, "life")
+	if (x + y) % 2 >= 1 then
+		r, g, b = r - 20, g - 20, b - 20
+	end
+	if life > 0 then
+		local ctype = sim.partProperty(i, "ctype")
+		local saturation = clamp(life / wickMaxFuel, 0, 1) 
+	
+		local elemColor = elem.property(ctype, "Colour")
+		local colr, colg, colb = graphics.getColors(elemColor)
+		colr, colg, colb = colr * saturation + r * (1 - saturation), colg * saturation + g * (1 - saturation), colb * saturation + b * (1 - saturation)
+		
+		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
+		return 0,pixel_mode,255,colr,colg,colb,255,colr,colg,colb;
+	else
+		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
+		return 0,pixel_mode,255,r,g,b,255,r,g,b;
 	end
 end)
 
