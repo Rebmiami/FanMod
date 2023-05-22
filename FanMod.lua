@@ -6325,6 +6325,8 @@ end)
 end -- End of PLST scope
 
 do -- Start of WICK scope
+elem.property(elem.DEFAULT_PT_WAX, "HeatConduct", 12)
+
 local wickAbsorbable = {
 	[elem.DEFAULT_PT_OIL] = true,
 	[elem.DEFAULT_PT_NITR] = true,
@@ -6341,16 +6343,214 @@ local wickAbsorbable = {
 	[elem.DEFAULT_PT_EXOT] = true,
 	[fuel] = true,
 }
-local wickIgniters = {
+local defaultIgniters = {
 	[elem.DEFAULT_PT_FIRE] = true,
+	[elem.DEFAULT_PT_LAVA] = true,
 	[elem.DEFAULT_PT_PLSM] = true,
 	[elem.DEFAULT_PT_LIGH] = true,
+	[elem.DEFAULT_PT_SPRK] = true,
+	[elem.DEFAULT_PT_PHOT] = true,
 }
-local wickMaxFuel = 2000
-local wickFuelPerPart = 1000
-local wickFuelBurnTime = 20
-local wickFuelPerBurnTime = 50
+local wickMaxFuel = 20
+local wickFuelPerPart = 5
 local wickDryBurnTime = 120 -- Smoldering before decay
+local defaultBurnCharacteristics = {
+	burnTime = 20,
+	flameCreate = function(x, y)
+		local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+		if f then
+			-- Actual candles burn hotter than this, but this makes building candles easier since the wax melts slower.
+			sim.partProperty(f, "temp", 633)
+			sim.partProperty(f, "life", 100)
+		end
+	end,
+	burnOut = function(i) end,
+	igniters = defaultIgniters
+}
+
+local fuelCharacteristics = {
+	[elem.DEFAULT_PT_OIL] = defaultBurnCharacteristics,
+	[elem.DEFAULT_PT_NITR] = {
+		burnTime = 1,
+		flameCreate = function(x, y)
+			-- local x, y = sim.partPosition(i)
+			for i=-1,1 do for j=-1,1 do
+				if math.random(1,8) == 1 then
+					local p = sim.pmap(x + i, y + j)
+					if p and sim.partProperty(p, "type") == wick then
+						sim.partProperty(p, "tmp", 1)
+					end
+				end
+				local fireType
+				if math.random() > 0.6 then
+					fireType = elem.DEFAULT_PT_FIRE
+				elseif math.random() > 0.8 then
+					fireType = elem.DEFAULT_PT_PLSM
+				else
+					fireType = elem.DEFAULT_PT_EMBR
+				end
+				local f = sim.partCreate(-1, x + i, y + j, fireType)
+				if f then
+					sim.partProperty(f, "temp", 1200)
+				end
+			end end
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 0.1)
+		end,
+		burnOut = function(i)
+			local x, y = sim.partPosition(i)
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 2)
+			sim.partKill(i)
+		end,
+		igniters = defaultIgniters
+	},
+	[elem.DEFAULT_PT_LRBD] = {
+
+	},
+	[elem.DEFAULT_PT_ACID] = {
+		burnTime = 20,
+		flameCreate = function(x, y)
+			if math.random() > 0.8 then
+				sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_CAUS)
+			else
+				local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+				if f then
+					sim.partProperty(f, "life", 100)
+				end
+			end
+		end,
+		burnOut = function(i) end,
+		igniters = defaultIgniters
+	},
+	[elem.DEFAULT_PT_MWAX] = defaultBurnCharacteristics,
+	[elem.DEFAULT_PT_DESL] = {
+
+	},
+	[elem.DEFAULT_PT_LOXY] = {
+
+	},
+	[elem.DEFAULT_PT_GLOW] = {
+
+	},
+	-- BIZR burns the opposite way most things burn. Truly bizarre...
+	[elem.DEFAULT_PT_BIZR] = {
+		burnTime = 20,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_CFLM)
+			if f then
+				sim.partProperty(f, "life", 100)
+			end
+		end,
+		burnOut = function(i) end,
+		igniters = {
+			[elem.DEFAULT_PT_CFLM] = true,
+		}
+	},
+	[elem.DEFAULT_PT_SOAP] = {
+		burnTime = 3,
+		flameCreate = function(x, y)
+			if math.random(1,60) == 1 then
+				local soaps = {}
+				local bubbleSize = math.random(3,6)
+				local angle = math.random(0, math.pi * 2)
+				local cx, cy = math.sin(angle) * (bubbleSize + 2), math.cos(angle) * (bubbleSize + 2)
+				for i=0,bubbleSize do
+					-- Create soap particles in a circular formation
+					local dx, dy = math.sin(math.pi * i / bubbleSize * 2) * bubbleSize * 0.6, math.cos(math.pi * i / bubbleSize * 2) * bubbleSize * 0.6
+					local p = sim.partCreate(-1, x + cx + dx, y + cy + dy, elem.DEFAULT_PT_SOAP)
+					if p >= 0 then 
+	
+						-- Add velocity to push bubbles away
+						local magnitude = math.sqrt(cx ^ 2 + cy ^ 2)
+						local vx, vy = (cx + dx) / magnitude, (cy + dy) / magnitude
+						sim.partProperty(p, "vx", vx * 4)
+						sim.partProperty(p, "vy", vy * 4)
+
+						table.insert(soaps, p)
+					end
+				end
+				if #soaps >= 3 then
+					-- Connect soap particles into a bubble
+					for i=1,#soaps - 1 do
+						local soap1 = soaps[i]
+						local soap2 = soaps[i + 1]
+						sim.partProperty(soap1, "tmp", soap2)
+						sim.partProperty(soap2, "tmp2", soap1)
+						sim.partProperty(soaps[i], "ctype", 7)
+					end
+					sim.partProperty(soaps[#soaps], "tmp", soaps[1])
+					sim.partProperty(soaps[1], "tmp2", soaps[#soaps])
+					sim.partProperty(soaps[#soaps], "ctype", 7)
+				end
+			end
+			-- Pressure to push bubbles away
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 0.2)
+		end,
+		burnOut = function(i) end,
+		igniters = defaultIgniters
+	},
+	[elem.DEFAULT_PT_DEUT] = {
+		burnTime = 10,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_NEUT)
+			if f then
+				sim.partProperty(f, "temp", 1000)
+			end
+		end,
+		burnOut = function(i) end,
+		igniters = {
+			[elem.DEFAULT_PT_NEUT] = true,
+			[elem.DEFAULT_PT_LIGH] = true,
+		}
+	},
+	[elem.DEFAULT_PT_ISOZ] = {
+		burnTime = 30,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_PHOT)
+			if f then
+				-- sim.partProperty(f, "temp", 1000)
+			end
+		end,
+		burnOut = function(i) end,
+		igniters = {
+			[elem.DEFAULT_PT_PHOT] = true,
+		}
+	},
+	[elem.DEFAULT_PT_EXOT] = {
+		burnTime = 5,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_ELEC)
+			if f then
+				sim.partProperty(f, "temp", 1000)
+			end
+			sim.gravMap(x / 4, y / 4, 1, 1, 0.2)
+		end,
+		burnOut = function(i) end,
+		igniters = {
+			[elem.DEFAULT_PT_ELEC] = true,
+			[elem.DEFAULT_PT_LIGH] = true,
+		}
+	},
+	[fuel] = {
+		burnTime = 40,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_PLSM)
+			if f then
+				sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 1)
+				sim.partProperty(f, "temp", 4000)
+				sim.partProperty(f, "life", 40)
+			end
+		end,
+		burnOut = function(i) end,
+		igniters = {
+			[elem.DEFAULT_PT_PLSM] = true,
+			[elem.DEFAULT_PT_LIGH] = true,
+		}
+	},
+}
+fuelCharacteristics[0] = fuelCharacteristics[elem.DEFAULT_PT_OIL]
+
+local wickFuelBurnTime = 20
+local wickFuelPerBurnTime = 1
 
 -- ctype: Element being wicked.
 -- life: Amount absorbed
@@ -6370,7 +6570,8 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 	local ctype = sim.partProperty(i, "ctype")
 	local life = sim.partProperty(i, "life")
 	if s ~= n and life < wickMaxFuel then
-		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+		local rx, ry = x + math.random(-1, 1), y + math.random(-1, 1)
+		local p = sim.pmap(rx, ry)
 		if p then
 			local ptype = sim.partProperty(p, "type")
 			if ctype == ptype or (ctype == 0 and wickAbsorbable[ptype]) then
@@ -6385,7 +6586,8 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 	end
 	
 	if life > 0 then
-		local p = sim.pmap(x + math.random(-1, 1), y + math.random(-1, 1))
+		local rx, ry = x + math.random(-1, 1), y + math.random(-1, 1)
+		local p = sim.pmap(rx, ry)
 		if p then
 			local ptype = sim.partProperty(p, "type")
 			if ptype == wick then
@@ -6408,11 +6610,14 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 		sim.partProperty(i, "ctype", 0)
 	end
 
+	local fuelData = fuelCharacteristics[ctype] or fuelCharacteristics[0]
+
 	local tmp = sim.partProperty(i, "tmp")
 	if tmp == 0 then
-		if s ~= n and math.random(1, 8) == 1 then
-			local randomNeighbor = sim.pmap(x + math.random(3) - 2, y + math.random(3) - 2)
-			if randomNeighbor ~= nil and (wickIgniters[sim.partProperty(randomNeighbor, "type")] == true) then
+		if n > 0 and math.random(1, 8) == 1 then
+			local rx, ry = x + math.random(-1, 1), y + math.random(-1, 1)
+			local randomNeighbor = sim.pmap(rx, ry) or sim.photons(rx, ry)
+			if randomNeighbor ~= nil and (fuelData.igniters[sim.partProperty(randomNeighbor, "type")] == true) then
 				sim.partProperty(i, "tmp", 1)
 			end
 		end
@@ -6420,19 +6625,31 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 		tmp = tmp + 1
 
 		if life > 0 then
-			sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
-			if tmp > wickFuelBurnTime then
+			fuelData.flameCreate(x, y)
+			if tmp > fuelData.burnTime then
 				life = life - wickFuelPerBurnTime
 				tmp = 1
 			end
 		end
 		-- Check again to ensure life has not dropped below zero
 		if life <= 0 then
-			sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_SMKE)
+			if ctype ~= 0 then
+				fuelData.burnOut(i)
+			end
+			if math.random(1,8) == 1 then
+				local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_SMKE)
+				if f then
+					sim.partProperty(f, "temp", 373)
+					sim.partProperty(f, "life", 50)
+				end
+			end
 			if tmp > wickDryBurnTime then
 				sim.partKill(i)
+				local p = sim.partCreate(-3, x, y, elem.DEFAULT_PT_DUST)
+				sim.partProperty(p, "dcolour", 0xFFCAC0B4)
 				return
 			end
+			life = 0
 		end
 		sim.partProperty(i, "tmp", tmp)
 	end
@@ -6443,9 +6660,6 @@ end)
 elem.property(wick, "Graphics", function (i, r, g, b)
 	local x, y = sim.partPosition(i)
 	local life = sim.partProperty(i, "life")
-	if (x + y) % 2 >= 1 then
-		r, g, b = r - 20, g - 20, b - 20
-	end
 	if life > 0 then
 		local ctype = sim.partProperty(i, "ctype")
 		local saturation = clamp(life / wickMaxFuel, 0, 1) 
@@ -6454,9 +6668,15 @@ elem.property(wick, "Graphics", function (i, r, g, b)
 		local colr, colg, colb = graphics.getColors(elemColor)
 		colr, colg, colb = colr * saturation + r * (1 - saturation), colg * saturation + g * (1 - saturation), colb * saturation + b * (1 - saturation)
 		
+		if (x + y) % 2 >= 1 then
+			colr, colg, colb = colr - 20, colg - 20, colb - 20
+		end
 		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
 		return 0,pixel_mode,255,colr,colg,colb,255,colr,colg,colb;
 	else
+		if (x + y) % 2 >= 1 then
+			r, g, b = r - 20, g - 20, b - 20
+		end
 		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
 		return 0,pixel_mode,255,r,g,b,255,r,g,b;
 	end
