@@ -6335,7 +6335,6 @@ local wickAbsorbable = {
 	[elem.DEFAULT_PT_MWAX] = true,
 	[elem.DEFAULT_PT_DESL] = true,
 	[elem.DEFAULT_PT_LOXY] = true,
-	[elem.DEFAULT_PT_GLOW] = true,
 	[elem.DEFAULT_PT_BIZR] = true,
 	[elem.DEFAULT_PT_SOAP] = true,
 	[elem.DEFAULT_PT_DEUT] = true,
@@ -6365,10 +6364,12 @@ local defaultBurnCharacteristics = {
 		end
 	end,
 	burnOut = function(i) end,
-	igniters = defaultIgniters
+	igniters = defaultIgniters,
+	burnTemp = 573
 }
 
 local fuelCharacteristics = {
+	-- While it would make sense for OIL to outgas GAS, this drastically reduces its efficiency
 	[elem.DEFAULT_PT_OIL] = defaultBurnCharacteristics,
 	[elem.DEFAULT_PT_NITR] = {
 		burnTime = 1,
@@ -6404,7 +6405,37 @@ local fuelCharacteristics = {
 		igniters = defaultIgniters
 	},
 	[elem.DEFAULT_PT_LRBD] = {
-
+		burnTime = 5,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+			if f then
+				sim.partProperty(f, "temp", 1500)
+			end
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 0.1)
+		end,
+		burnOut = function(i)
+			local x, y = sim.partPosition(i)
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 2)
+			sim.partKill(i)
+		end,
+		igniters = {
+			-- Default igniters
+			[elem.DEFAULT_PT_FIRE] = true,
+			[elem.DEFAULT_PT_LAVA] = true,
+			[elem.DEFAULT_PT_PLSM] = true,
+			[elem.DEFAULT_PT_LIGH] = true,
+			[elem.DEFAULT_PT_SPRK] = true,
+			[elem.DEFAULT_PT_PHOT] = true,
+			-- Waters
+			[elem.DEFAULT_PT_WATR] = true,
+			[elem.DEFAULT_PT_DSTW] = true,
+			[elem.DEFAULT_PT_SLTW] = true,
+			[elem.DEFAULT_PT_BUBW] = true,
+			[elem.DEFAULT_PT_WTRV] = true,
+			[elem.DEFAULT_PT_FRZW] = true,
+			[trtw] = true,
+		},
+		burnTemp = 961,
 	},
 	[elem.DEFAULT_PT_ACID] = {
 		burnTime = 20,
@@ -6423,13 +6454,31 @@ local fuelCharacteristics = {
 	},
 	[elem.DEFAULT_PT_MWAX] = defaultBurnCharacteristics,
 	[elem.DEFAULT_PT_DESL] = {
-
+		burnTime = 20,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+			if f then
+				sim.partProperty(f, "temp", 2200)
+			end
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 0.1)
+		end,
+		burnOut = function(i) end,
+		igniters = defaultIgniters,
+		burnTemp = 335
 	},
 	[elem.DEFAULT_PT_LOXY] = {
-
-	},
-	[elem.DEFAULT_PT_GLOW] = {
-
+		burnTime = 40,
+		flameCreate = function(x, y)
+			local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, elem.DEFAULT_PT_FIRE)
+			if f then
+				sim.partProperty(f, "temp", 2300 + math.random(1000))
+			end
+			sim.pressure(x/4, y/4, sim.pressure(x/4, y/4) + 0.2)
+		end,
+		burnOut = function(i) end,
+		igniters = defaultIgniters,
+		outgasTemp = 90.1,
+		outgasType = elem.DEFAULT_PT_LOXY,
 	},
 	-- BIZR burns the opposite way most things burn. Truly bizarre...
 	[elem.DEFAULT_PT_BIZR] = {
@@ -6586,7 +6635,7 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 	end
 	
 	if life > 0 then
-		local rx, ry = x + math.random(-1, 1), y + math.random(-1, 1)
+		local rx, ry = x + math.random(-2, 2), y + math.random(-2, 2)
 		local p = sim.pmap(rx, ry)
 		if p then
 			local ptype = sim.partProperty(p, "type")
@@ -6611,9 +6660,19 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 	end
 
 	local fuelData = fuelCharacteristics[ctype] or fuelCharacteristics[0]
-
 	local tmp = sim.partProperty(i, "tmp")
 	if tmp == 0 then
+		if life >= 5 and s > 0 and (fuelData.outgasTemp or fuelData.burnTemp) then
+			local temp = sim.partProperty(i, "temp")
+			if fuelData.burnTemp and temp > fuelData.burnTemp then
+				sim.partProperty(i, "tmp", 1)
+			elseif fuelData.outgasTemp and temp > fuelData.outgasTemp then
+				local f = sim.partCreate(-1, x + math.random(3) - 2, y + math.random(3) - 2, fuelData.outgasType)
+				if f then
+					life = life - 5
+				end
+			end
+		end
 		if n > 0 and math.random(1, 8) == 1 then
 			local rx, ry = x + math.random(-1, 1), y + math.random(-1, 1)
 			local randomNeighbor = sim.pmap(rx, ry) or sim.photons(rx, ry)
@@ -6653,7 +6712,6 @@ elem.property(wick, "Update", function(i, x, y, s, n)
 		end
 		sim.partProperty(i, "tmp", tmp)
 	end
-
 	sim.partProperty(i, "life", life)
 end)
 
@@ -6665,20 +6723,20 @@ elem.property(wick, "Graphics", function (i, r, g, b)
 		local saturation = clamp(life / wickMaxFuel, 0, 1) 
 	
 		local elemColor = elem.property(ctype, "Colour")
-		local colr, colg, colb = graphics.getColors(elemColor)
-		colr, colg, colb = colr * saturation + r * (1 - saturation), colg * saturation + g * (1 - saturation), colb * saturation + b * (1 - saturation)
+		local er, eg, eb = graphics.getColors(elemColor)
+		local colr, colg, colb = er * saturation + r * (1 - saturation), eg * saturation + g * (1 - saturation), eb * saturation + b * (1 - saturation)
 		
 		if (x + y) % 2 >= 1 then
 			colr, colg, colb = colr - 20, colg - 20, colb - 20
 		end
 		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
-		return 0,pixel_mode,255,colr,colg,colb,255,colr,colg,colb;
+		return 0,pixel_mode,255,colr,colg,colb,saturation*255,er,eg,eb
 	else
 		if (x + y) % 2 >= 1 then
 			r, g, b = r - 20, g - 20, b - 20
 		end
-		local pixel_mode = ren.PMODE_FLAT + ren.PMODE_BLUR
-		return 0,pixel_mode,255,r,g,b,255,r,g,b;
+		local pixel_mode = ren.PMODE_FLAT
+		return 0,pixel_mode,255,r,g,b,0,r,g,b
 	end
 end)
 end -- End of WICK scope
