@@ -5880,7 +5880,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 							sim.partProperty(child, "tmp3", (changle / math.pi * 1800) % 3600)
 						end
 						sim.partProperty(child, "tmp4", visualGenome)
-					else
+					elseif water >= 100 then
 						local obstacle = sim.pmap(px + dx + 0.5, py + dy + 0.5)
 						
 						-- Mushrooms grow with lots of force, some can even break through asphalt
