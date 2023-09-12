@@ -2040,7 +2040,7 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 		sim.partProperty(i, "temp", temp + 200)
 		return
 	else
-		sim.partProperty(i, "temp", temp + tmp / 4)
+		sim.partProperty(i, "temp", temp + tmp / 4 + 10)
 	end
 
 	
@@ -2053,8 +2053,6 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 			if math.random(50) == 1 then
 				if type == elem.DEFAULT_PT_LAVA then
 					sim.partProperty(randomNeighbor, "type", mlva)
-				elseif elem.property(type, "HighTemperatureTransition") == elem.DEFAULT_PT_LAVA then
-					sim.partProperty(randomNeighbor, "temp", sim.partProperty(randomNeighbor, "temp") + 500)
 				end
 			end
 
@@ -2062,6 +2060,8 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 				if mLavaNeutralizersCtype[type] then
 					local ctype = sim.partProperty(randomNeighbor, "ctype")
 					if mLavaNeutralizers[ctype] then
+						sim.partChangeType(i, melt)
+						sim.partProperty(i, "tmp2", 1)
 					end
 				else
 					sim.partChangeType(i, melt)
