@@ -10,7 +10,11 @@ end
 fanElemsEnv = {}
 -- __index = _G makes it so functions from Lua and the TPT API can be accessed with no additional fuss
 setmetatable(fanElemsEnv, {__index = _G})
-setfenv(1, fanElemsEnv)
+if _ENV then
+	_ENV = fanElemsEnv
+else
+	setfenv(1, fanElemsEnv)
+end
 
 -- pavg0/1 checks have been removed. No longer accomodating old versions
 if not sim.FIELD_TMP3 then
