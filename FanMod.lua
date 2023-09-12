@@ -75,6 +75,11 @@ local wick = elem.allocate("FANMOD", "WICK") -- Wick
 
 -- Utilities
 
+local globalTimer = 0
+event.register(event.tick, function()
+	globalTimer = globalTimer + 1
+end)  
+
 local mouseButtonType = {
 	[1] = function() return tpt.selectedl end,
 	[3] = function() return tpt.selectedr end,
@@ -2072,16 +2077,20 @@ elem.property(mlva, "Update", function(i, x, y, s, n)
 end)
 
 elem.property(mlva, "Graphics", function (i, r, g, b)
+	local x,y = sim.partPosition(i)
+	local colr = math.sin(globalTimer * 0.02 + y * 0.1 + math.sin(x * 0.1 + math.sin(globalTimer * 0.01) * 5) * 0.3 + math.sin(x * 0.04 + globalTimer * 0.03) * 0.4) * 100 + 140
+	local colg = colr * 0.3 - 50
+	local colb = 0
 
-	local colr = r
-	local colg = g
-	local colb = b
+	local firer = colr * 0.8
+	local fireg = colr * 0.6
+	local fireb = 0
 
-	local firea = 10
+	local firea = 20
 	
 	local pixel_mode = ren.PMODE_FLAT + ren.FIRE_ADD + ren.PMODE_BLUR
 
-	return 1,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+	return 0,pixel_mode,255,colr,colg,colb,firea,firer,fireg,fireb;
 end)
 end -- End of MELT scope
 
