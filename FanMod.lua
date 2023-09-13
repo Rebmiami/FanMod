@@ -5603,9 +5603,12 @@ elem.property(elem.DEFAULT_PT_WATR, "Update", function(i, x, y, s, n)
 			local tmp = sim.partProperty(k, "tmp")
 			local mode = tmp % 0x8
 			if mode == 0 or mode == 4 then 
-				sim.partKill(i)
-				sim.partProperty(k, "life", sim.partProperty(k, "life") + 1)
-				break
+				local life = sim.partProperty(k, "life")
+				if life < 30 then
+					sim.partKill(i)
+					sim.partProperty(k, "life", life + 1)
+					break
+				end
 			end
 		end
 	end
