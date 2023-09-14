@@ -1204,7 +1204,7 @@ local ffldPatternNames = {
 	"Not matching ctype",
 	"All if any match ctype",
 	"All if none match ctype",
-	"All if any don't match type",
+	"All if any don't match ctype",
 	"All if all match ctype",
 	"All particles in range",
 	"Matching ctype's menu section",
@@ -1274,12 +1274,25 @@ event.register(event.mousedown, function(x, y, button)
 		action = action / 0x001
 
 		local ffldConfigWindow = Window:new(-1, -1, 200, 76)
+		
+		local actionDropdown = Button:new(10, 10, 180, 16)
+		actionDropdown:action(
+			function(sender)
+				local windowX, windowY = ffldConfigWindow:position()
+				createDropdown(ffldActionNames, 10 + windowX, windowY - #ffldActionNames * 8 + 76 / 2, 180, 16, 
+					function(a, b)
+						actionDropdown:text(b)
+						action = a - 1
+					end)
+			end)
+		actionDropdown:text(ffldActionNames[action + 1])
+		ffldConfigWindow:addComponent(actionDropdown)
 
-		local patternDropdown = Button:new(10, 10, 180, 16)
+		local patternDropdown = Button:new(10, 30, 180, 16)
 		patternDropdown:action(
 			function(sender)
 				local windowX, windowY = ffldConfigWindow:position()
-				createDropdown(ffldPatternNames, 10 + windowX, 10 + windowY, 180, 16, 
+				createDropdown(ffldPatternNames, 10 + windowX, windowY - #ffldPatternNames * 8 + 76 / 2, 180, 16, 
 					function(a, b)
 						patternDropdown:text(b)
 						pattern = a - 1
@@ -1288,11 +1301,11 @@ event.register(event.mousedown, function(x, y, button)
 		patternDropdown:text(ffldPatternNames[pattern + 1])
 		ffldConfigWindow:addComponent(patternDropdown)
 		
-		local shapeDropdown = Button:new(10, 30, 180, 16)
+		local shapeDropdown = Button:new(10, 50, 180, 16)
 		shapeDropdown:action(
 			function(sender)
 				local windowX, windowY = ffldConfigWindow:position()
-				createDropdown(ffldShapeNames, 10 + windowX, 30 + windowY, 180, 16, 
+				createDropdown(ffldShapeNames, 10 + windowX, windowY - #ffldShapeNames * 8 + 76 / 2, 180, 16, 
 					function(a, b)
 						shapeDropdown:text(b)
 						shape = a - 1
@@ -1300,19 +1313,6 @@ event.register(event.mousedown, function(x, y, button)
 			end)
 		shapeDropdown:text(ffldShapeNames[shape + 1])
 		ffldConfigWindow:addComponent(shapeDropdown)
-		
-		local actionDropdown = Button:new(10, 50, 180, 16)
-		actionDropdown:action(
-			function(sender)
-				local windowX, windowY = ffldConfigWindow:position()
-				createDropdown(ffldActionNames, 10 + windowX, 50 + windowY, 180, 16, 
-					function(a, b)
-						actionDropdown:text(b)
-						action = a - 1
-					end)
-			end)
-		actionDropdown:text(ffldActionNames[action + 1])
-		ffldConfigWindow:addComponent(actionDropdown)
 
 		ffldConfigWindow:onTryExit(function()
 			sim.takeSnapshot()
@@ -5663,7 +5663,7 @@ elem.property(spor, "Update", function(i, x, y, s, n)
 			local pStopped = math.abs(sim.partProperty(p, "vx")) < 0.1 and math.abs(sim.partProperty(p, "vy")) < 0.1
 			local moist = moistSubstrate[ptype]
 			local dry = drySubstrate[ptype]
-			
+
 			if hungryFngs and not hungryInedible[ptype] then
 				moist = true
 			end
