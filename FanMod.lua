@@ -5180,7 +5180,7 @@ elem.property(elem.DEFAULT_PT_PROT, "Update", function(i, x, y, s, n)
 	if math.random(15) == 1 and sim.pressure(x / sim.CELL, y / sim.CELL) > 50 then
 		local index = sim.photons(x, y)
 		if index and index ~= i and sim.partProperty(index, "type") == elem.DEFAULT_PT_PROT then
-			local velocity = math.sqrt(sim.partProperty(i, "vx") ^ 2 + sim.partProperty(i, "vy") ^ 2)
+			local velocity = math.sqrt((sim.partProperty(i, "vx") - sim.partProperty(index, "vx")) ^ 2 + (sim.partProperty(i, "vy") - sim.partProperty(index, "vy")) ^ 2)
 			if velocity > 20 then
 				sim.partChangeType(i, stgm)
 				sim.partProperty(i, "life", 0)
