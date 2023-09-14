@@ -4685,6 +4685,7 @@ local fuelNonstick = {
 }
 
 elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
+elem.property(elem.DEFAULT_PT_SOAP, "Weight", 18)
 
 elem.element(fuel, elem.element(elem.DEFAULT_PT_GEL))
 elem.property(fuel, "Name", "FUEL")
@@ -4713,12 +4714,19 @@ elem.property(fuel, "Update", function(i, x, y, s, n)
 		end
 	else
 		if s ~= n then
+			local sticky = false
 			for o,p in pairs(sim.partNeighbours(x, y, 1)) do
-				if not fuelNonstick[sim.partProperty(p, "type")] then
-					sim.partProperty(i, "vx", 0) 
-					sim.partProperty(i, "vy", 0)
+				local ptype = sim.partProperty(p, "type")
+				if ptype == elem.DEFAULT_PT_SOAP then
+					sticky = false
 					break
+				elseif not fuelNonstick[ptype] then
+					sticky = true
 				end
+			end
+			if sticky then
+				sim.partProperty(i, "vx", 0) 
+				sim.partProperty(i, "vy", 0)
 			end
 		end
 
