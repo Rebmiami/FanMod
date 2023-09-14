@@ -5126,6 +5126,10 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 		end
 	end
 
+	if everlastingStgm then
+		stability = stgmMaxStability
+	end
+
 	if stability <= 0 then
 		sim.partKill(i)
 		sim.partProperty(sim.partCreate(-3, x, y, elem.DEFAULT_PT_WARP), "temp", mass * 200)
@@ -5515,6 +5519,13 @@ local drySubstrate = {
 	[elem.DEFAULT_PT_IGNC] = true,
 }
 
+-- Cannot be eaten when FNGS is set to "hungry" mode
+local hungryInedible = {
+	[elem.DEFAULT_PT_DMND] = true,
+	[fngs] = true,
+	[spor] = true,
+}
+
 -- Mushrooms can pierce certain elements if they're blocking their growth.
 -- These cannot be penetrated
 local shroomImpenetrable = {
@@ -5546,10 +5557,9 @@ local shroomImpenetrable = {
 	-- [fngs] = true,
 }
 
--- This was a bug in an earlier version of FNGS that I've decided to reimplement as a "secret feature"
-randomMode = false
 function getRandomMushroomGenome()
-	if randomMode then
+	-- This was an oversight in an earlier version of FNGS that I've decided to reimplement as a "secret feature"
+	if randomFngsGenomes then
 		return math.random(0, 0x7FFFFFFF), math.random(0, 0x7FFFFFFF)
 	else
 		local species = defaultGenomes[math.random(#defaultGenomes)]
@@ -5653,6 +5663,11 @@ elem.property(spor, "Update", function(i, x, y, s, n)
 			local pStopped = math.abs(sim.partProperty(p, "vx")) < 0.1 and math.abs(sim.partProperty(p, "vy")) < 0.1
 			local moist = moistSubstrate[ptype]
 			local dry = drySubstrate[ptype]
+			
+			if hungryFngs and not hungryInedible[ptype] then
+				moist = true
+			end
+
 			if pStopped and (moist or dry) then
 				local adjFungus = sim.partNeighbours(x, y, 1, fngs)
 				if #adjFungus > 0 then
@@ -5733,6 +5748,10 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 	
 					local moist = moistSubstrate[ptype]
 					local dry = drySubstrate[ptype]
+
+					if hungryFngs and not hungryInedible[ptype] then
+						moist = true
+					end
 	
 					-- Changing to < 1 prevents mycelia from merging together.
 					-- This makes most species much less viable but also causes interesting shapes in the mycelial network.
@@ -6798,6 +6817,70 @@ elem.property(pink, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
+
+-- Super secret menu
+randomFngsGenomes = false
+hungryFngs = false
+movingFfld = false
+everlastingStgm = false
+function _G.SuperSecretMenu()
+	local superSecretWindow = Window:new(-1, -1, 200, 76)
+
+	local randomFngsGenomesButton = Button:new(10, 10, 180, 16)
+	randomFngsGenomesButton:action(
+		function(sender)
+			randomFngsGenomes = not randomFngsGenomes
+			randomFngsGenomesButton:text("FNGS Randomizer: " .. tostring(randomFngsGenomes))
+		end)
+	randomFngsGenomesButton:text("FNGS Randomizer: " .. tostring(randomFngsGenomes))
+	superSecretWindow:addComponent(randomFngsGenomesButton)
+
+	local hungryFngsButton = Button:new(10, 30, 180, 16)
+	hungryFngsButton:action(
+		function(sender)
+			hungryFngs = not hungryFngs
+			hungryFngsButton:text("FNGS eats everything: " .. tostring(hungryFngs))
+		end)
+	hungryFngsButton:text("FNGS eats everything: " .. tostring(hungryFngs))
+	superSecretWindow:addComponent(hungryFngsButton)
+
+	local movingFfldButton = Button:new(10, 50, 180, 16)
+	movingFfldButton:action(
+		function(sender)
+			movingFfld = not movingFfld
+			movingFfldButton:text("Moving FFLD: " .. tostring(movingFfld))
+			if movingFfld then
+				elem.property(ffld, "Properties", elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT + elem.PROP_LIFE_DEC)
+				elem.property(ffld, "Gravity", 0.05)
+				elem.property(ffld, "Loss", 0.99)
+				elem.property(ffld, "Falldown", 1)
+				elem.property(ffld, "Advection", 0.05)
+			else
+				elem.property(ffld, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT + elem.PROP_LIFE_DEC)
+				elem.property(ffld, "Gravity", 0)
+				elem.property(ffld, "Loss", 0)
+				elem.property(ffld, "Falldown", 0)
+				elem.property(ffld, "Advection", 0)
+			end
+		end)
+	movingFfldButton:text("Moving FFLD: " .. tostring(movingFfld))
+	superSecretWindow:addComponent(movingFfldButton)
+
+	local everlastingStgmButton = Button:new(10, 70, 180, 16)
+	everlastingStgmButton:action(
+		function(sender)
+			everlastingStgm = not everlastingStgm
+			everlastingStgmButton:text("Everlasting STGM: " .. tostring(everlastingStgm))
+		end)
+		everlastingStgmButton:text("Everlasting STGM: " .. tostring(everlastingStgm))
+	superSecretWindow:addComponent(everlastingStgmButton)
+
+	superSecretWindow:onTryExit(function()
+		interface.closeWindow(superSecretWindow)
+	end)
+
+	interface.showWindow(superSecretWindow)
+end
 
 end -- End of secrets scope
 
