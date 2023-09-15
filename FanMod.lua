@@ -945,6 +945,18 @@ local shieldActionFunctions = {
 		sim.partKill(d)
 		return true
 	end,
+	[0x00D] = function(d, x, y) -- Deflect
+		-- Essentially stronger version of Repel, specifically for high-velocity particles
+		local px, py = sim.partPosition(d)
+		px = px - x
+		py = py - y
+		local vmagnitude = math.sqrt(sim.partProperty(d, "vx") ^ 2 + sim.partProperty(d, "vy") ^ 2) + 0.1
+		local fx = px / math.sqrt(px ^ 2 + py ^ 2) * vmagnitude
+		local fy = py / math.sqrt(px ^ 2 + py ^ 2) * vmagnitude
+		sim.partProperty(d, "vx", fx)
+		sim.partProperty(d, "vy", fy)
+		return true
+	end,
 }
 
 local ffldIgnore = {
@@ -1242,6 +1254,7 @@ local ffldActionNames = {
 	"Highlight",
 	"Paint w/deco color",
 	"Delete",
+	"Deflect",
 }
 
 -- FFLD placement/configuration handling
