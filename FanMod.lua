@@ -4388,6 +4388,12 @@ elem.property(shot, "Loss", 0.99)
 elem.property(shot, "Gravity", 0.7)
 elem.property(shot, "HighTemperatureTransition", -1)
 elem.property(shot, "MenuSection", elem.SC_EXPLOSIVE)
+
+elem.property(shot, "Create", function(i, x, y, t, v)
+	if v == 0 and elem[tpt.selectedr] then -- Use right click element as ctype
+		sim.partProperty(i, "ctype", elem[tpt.selectedr])
+	end
+end)
 elem.property(shot, "Update", function(i, x, y, s, n)
 	if sim.partProperty(i, "life") == -1 then
 		sim.partKill(i)
