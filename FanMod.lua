@@ -6843,7 +6843,7 @@ hungryFngs = false
 movingFfld = false
 everlastingStgm = false
 function _G.SuperSecretMenu()
-	local superSecretWindow = Window:new(-1, -1, 200, 76)
+	local superSecretWindow = Window:new(-1, -1, 200, 96)
 
 	local randomFngsGenomesButton = Button:new(10, 10, 180, 16)
 	randomFngsGenomesButton:action(
