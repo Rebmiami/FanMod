@@ -5601,6 +5601,7 @@ end
 --  0xF0: Growth timer. Used by mushroom caps.
 -- tmp2: Reach. Used by mushrooms stipes and mycelia
 -- tmp3: Angle or radius, depending on context.
+-- tmp4: Visual genome.
 elem.element(fngs, elem.element(elem.DEFAULT_PT_WOOD))
 elem.property(fngs, "Name", "FNGS")
 elem.property(fngs, "Description", "Fungus. Grows a mycelium network in organic elements, then grows mushrooms.")
@@ -5962,7 +5963,7 @@ elem.property(fngs, "Update", function(i, x, y, s, n)
 			end
 			-- Mushrooms lose water faster than mycelium
 			-- Don't punish "overinvestment" before resources have been distributed and the cap is fully built
-			if (math.random(50) == 1 or math.random(water) > 30) and growTimer == 0 then
+			if (math.random(50) == 1 or math.random() * water > 30) and growTimer == 0 then
 				water = water - 1
 				-- Ruthlessly punish overinvestment of resources into small mushrooms
 				if not growing and water > 20 then
