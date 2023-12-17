@@ -257,14 +257,14 @@ local function floodFill(x, y, condition, action)
 	 	end
 	 	if y1 >= sim.CELL + 1 then
 	 		for i = x1, x2 do
-	 			if condition(i, y1 + 1) then
+	 			if condition(i, y1 + 1) and bitmap[i][y1 + 1] then
 	 				pstack[#pstack + 1]	= {i, y1 + 1}
 	 			end
 	 		end
 	 	end
 	 	if y1 < sim.YRES - sim.CELL - 1 then
 	 		for i = x1, x2 do
-	 			if condition(i, y1 - 1) then
+	 			if condition(i, y1 - 1) and bitmap[i][y1 - 1] then
 	 				pstack[#pstack + 1]	= {i, y1 - 1}
 	 			end
 	 		end
