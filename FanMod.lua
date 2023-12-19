@@ -75,6 +75,7 @@ local wick = elem.allocate("FANMOD", "WICK") -- Wick
 
 -- v3 Elements
 local vers = elem.allocate("FANMOD", "VERS") -- Versionium
+local tbne = elem.allocate("FANMOD", "TBNE") -- Turbine
 
 -- Utilities
 
@@ -6827,6 +6828,37 @@ elem.property(vers, "Graphics", function (i, r, g, b)
 	return 0,ren.PMODE_NONE,255,r,g,b,0,r,g,b
 end)
 end -- End of VERS scope
+
+do -- Start of TBNE scope
+
+-- Turbine
+-- ctype: Blade shape (fantasy anemometer-like, fan-like, end-on)
+-- temp: Angular position in degrees
+-- life: Angular velocity in deci-RPM
+-- tmp: Angle in 1/16ths of a revolution
+-- tmp1: Length in pixels
+-- tmp2: Radius in pixels
+-- tmp3: Number of blades
+elem.element(tbne, elem.element(elem.DEFAULT_PT_CLNE))
+elem.property(tbne, "Name", "TBNE")
+elem.property(tbne, "Description", "Turbine. Click and drag to place a turbine, set turbine type with brush shape (tab). Sparks nearby conductors when spinning.")
+elem.property(tbne, "Colour", 0x051853)
+elem.property(tbne, "HeatConduct", 0)
+elem.property(tbne, "Hardness", 0)
+elem.property(tbne, "MenuSection", elem.SC_FORCE)
+
+elem.property(tbne, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT)
+
+elements.property(tbne, "Create", function(i, x, y, t, v)
+end)
+
+elem.property(tbne, "Update", function(i, x, y, s, n)
+end)
+
+elem.property(tbne, "Graphics", function (i, r, g, b)
+	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
+end)
+end -- End of TBNE scope
 
 do -- Start of secrets scope
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
