@@ -73,7 +73,12 @@ local plex = elem.allocate("FANMOD", "PLEX") -- Plastic explosive
 
 local wick = elem.allocate("FANMOD", "WICK") -- Wick
 
+-- v3 Elements
+local vers = elem.allocate("FANMOD", "VERS") -- Versionium
+
 -- Utilities
+
+local version = {14, 1, 1}
 
 local globalTimer = 0
 event.register(event.tick, function()
@@ -6803,6 +6808,25 @@ elem.property(wick, "Graphics", function (i, r, g, b)
 	end
 end)
 end -- End of WICK scope
+
+do -- Start of VERS scope
+elem.element(vers, elem.element(elem.DEFAULT_PT_DMND))
+elem.property(vers, "Name", "VERS")
+elem.property(vers, "Description", "Version indicator. Invisible when the major, minor, and revision numbers in tmp, tmp2, and tmp3 respectively.")
+elem.property(vers, "Colour", 0x00FF00)
+elem.property(vers, "MenuSection", -1)
+elem.property(vers, "Graphics", function (i, r, g, b)
+	local myversion = { sim.partProperty(i, "tmp"), sim.partProperty(i, "tmp2"), sim.partProperty(i, "tmp3") }
+	for i,j in ipairs(myversion) do
+		if j < version[i] then
+			return 0,ren.PMODE_FLAT,255,r,g,b,0,r,g,b
+		elseif j > version[i] then
+			break
+		end
+	end
+	return 0,ren.PMODE_NONE,255,r,g,b,0,r,g,b
+end)
+end -- End of VERS scope
 
 do -- Start of secrets scope
 -- SEEEEEEEEEEEEECRETS!!!!!!!!!!
