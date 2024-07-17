@@ -278,6 +278,10 @@ local function floodFill(x, y, condition, action)
 	until (#pstack == 0)
 end
 
+local function sign(num)
+	return num > 0 and 1 or (num == 0 and 0 or -1)
+end
+
 do -- Start of SMDB scope
 
 elem.element(smdb, elem.element(elem.DEFAULT_PT_DEST))
@@ -1884,7 +1888,7 @@ elem.property(elem.DEFAULT_PT_LAVA, "Update", function(i, x, y, s, n)
 		end
 	end
 end)
-end -- Start of GRPH scope
+end -- End of GRPH scope
 
 do -- Start of MELT scope
 local waters = {
@@ -2200,7 +2204,7 @@ elem.property(mmry, "Graphics", function (i, r, g, b)
 end)
 
 sim.can_move(mmry, mmry, 1)
-end -- Start of MELT scope
+end -- End of MELT scope
 
 
 do -- Start of HALO scope
@@ -5253,10 +5257,6 @@ local function unweaveFungusRadius(num)
 	end
 end
 
-local function sign(num)
-	return num > 0 and 1 or (num == 0 and 0 or -1)
-end
-
 local shroomCurveDerivativeSolutions = {
 	function(a, b, c)
 		return math.sqrt((-(math.sqrt(b ^ 2 - 3 * a * c) + b) / a) / 3)
@@ -6831,31 +6831,168 @@ end -- End of VERS scope
 
 do -- Start of TBNE scope
 
+function turbineGradient(x)
+	return (x ^ 100) / 2 + 0.5 + (x - 1) ^ 2 -- x ^ 4
+end
+
+function turbineShading(normalx, normaly, normalz)
+
+end
+
+local angleSteps = {
+	{1, 0},
+	{0.5, 0.5},
+	{0, 1},
+	{-0.5, 0.5},
+	{-1, 0},
+	{-0.5, -0.5},
+	{0, -1},
+	{0.5, -0.5},
+}
+
+function drawTurbine(x, y, r, a, c, l, w, b, t)
+	local dx = math.cos(a / 4 * math.pi)
+	local dy = math.sin(a / 4 * math.pi)
+	local x1 = x
+	local y1 = y
+	local i = 1
+	while math.sqrt((x1 - x) ^ 2 + (y1 - y) ^ 2) < l do
+
+		x1 = x + angleSteps[a % 8 + 1][1] * i
+		y1 = y + angleSteps[a % 8 + 1][2] * i
+		-- if math.abs(x1 - xsub) > 1 then
+		-- 	x1 = x1 + sign(dx)
+		-- 	xsub = xsub - sign(dx)
+		-- elseif math.abs(y1 - ysub) > 1 then
+		-- 	y1 = y1 + sign(dy)
+		-- 	ysub = ysub - sign(dy)
+		-- end
+
+		for blade = 0, b do
+			local r2 = r + math.sqrt((x1 - x) ^ 2 + (y1 - y) ^ 2) * c
+
+			local bladeAngle = r2 % (65536 / b)
+
+			local blade2
+			local backFaceBlade = math.floor((r2 + 32768 + 32768 / b) / (65536 / b))
+
+			if blade % 2 == 0 then
+				blade2 = backFaceBlade + blade / 2
+			else
+				blade2 = backFaceBlade - (blade - 1) / 2
+			end
+
+			--blade2 = backFaceBlade
+			
+			local blade2Angle = (r2 - 65536 / b * blade2) * 2 * math.pi / 65536
+
+			-- local blade2Angle = (bladeAngle + backFaceBlade) * 2 * math.pi / 65536
+	
+			local x2 = x1 - (math.sin(blade2Angle) * w * dy)
+			local y2 = y1 + (math.sin(blade2Angle) * w * dx)
+	
+			local z = math.cos(blade2Angle)-- * w
+
+			z = clamp(z, 0.1, 1)
+	
+			if blade2Angle > math.pi then
+				-- z = turbineGradient(math.cos(blade2Angle + math.pi / 8) / 2 + 0.5)
+			else
+				-- z = turbineGradient(math.cos(blade2Angle + math.pi / 8) / 2 + 0.5)
+			end
+
+			graphics.drawLine(x1 + sign(x2 - x1) / 4, y1 + sign(y2 - y1) / 4, x2 + sign(x2 - x1) / 4, y2 + sign(y2 - y1) / 4, 255 * z, 255 * z, 255 * z, 255)
+			-- graphics.drawLine(x1 + sign(x2 - x1) / 4, y1 + sign(y2 - y1) / 4, x2 + sign(x2 - x1) / 4, y2 + sign(y2 - y1) / 4, 127 * ((blade2) % 3), 127 * ((blade2 + 1) % 3), 127 * ((blade2 + 2) % 3), 255)
+		end
+		i = i + 1
+	end
+end
+
+-- My ambition knows no bounds
+
 -- Turbine
--- ctype: Blade shape (fantasy anemometer-like, fan-like, end-on)
--- temp: Angular position in degrees
--- life: Angular velocity in deci-RPM
--- tmp: Angle in 1/16ths of a revolution
--- tmp1: Length in pixels
--- tmp2: Radius in pixels
--- tmp3: Number of blades
+-- ctype: Turbine parameters (direction, blade count, curvature, blade type)
+-- temp: Unused?
+-- life: Angular position, in 65536ths of a revolution
+-- tmp: Angular momentum, in mass*pixel^2/frame. Unit of mass is arbitrary
+-- tmp2: Length and width in pixels
+
 elem.element(tbne, elem.element(elem.DEFAULT_PT_CLNE))
 elem.property(tbne, "Name", "TBNE")
-elem.property(tbne, "Description", "Turbine. Click and drag to place a turbine, set turbine type with brush shape (tab). Sparks nearby conductors when spinning.")
+elem.property(tbne, "Description", "Turbine. Click and drag to place, shift-click to customize. Extract power with METL, accelerate with NSCN/PSCN.")
 elem.property(tbne, "Colour", 0x051853)
 elem.property(tbne, "HeatConduct", 0)
 elem.property(tbne, "Hardness", 0)
+elem.property(tbne, "AirLoss", 1)
 elem.property(tbne, "MenuSection", elem.SC_FORCE)
 
 elem.property(tbne, "Properties", elem.TYPE_SOLID + elem.PROP_NOCTYPEDRAW + elem.PROP_NOAMBHEAT)
 
 elements.property(tbne, "Create", function(i, x, y, t, v)
 end)
+	
+local bladecount = 7
+local length = 20
+local width = 40
+local curvature = 600 -- 65536ths of a pixel per pixel
 
 elem.property(tbne, "Update", function(i, x, y, s, n)
+	local rotation = sim.partProperty(i, "life")
+	local momentum = sim.partProperty(i, "tmp") * 10
+	local direction = 0
+	local airVelX = sim.velocityX(x / 4, y / 4)
+	local airVelY = sim.velocityY(x / 4, y / 4)
+
+	-- local velocityFactor = 1
+
+	local moi = bladecount * length * width * width
+
+	local angvel = momentum / moi / 65536
+
+	-- Temporary test variable (radius)
+	local r = 10
+
+	-- Essentially how many pixels the blade moves along its axis of rotation this frame
+	-- Used for air velocity calculations
+	local bladeVelX = -angvel * (65536 / curvature)
+
+	local velDiffX = (airVelX - bladeVelX)
+
+	-- Density of air assumed constant - should it be?
+	-- Air velocity is assumed to be in p/f (it's not, air sim is completely arbitrary and doesn't have any sensible units)
+
+	-- The mass of a pixel of air is assumed to be 1
+	local airMomentumX = airVelX * (sim.CELL * sim.CELL)
+	-- Amount of momentum that must be added to the air for the linear speed of the air and turbine to be equal
+	local airImpulseX = velDiffX * (sim.CELL * sim.CELL) * 0.5
+	local turbineImpulse = airImpulseX * r * 65536 / 200
+
+	-- Why does this have to be negated?
+	airVelX = -(airMomentumX + airImpulseX) / (sim.CELL * sim.CELL)
+	momentum = (momentum - turbineImpulse)
+
+	--momentum = (bladeVelX / velocityFactor) * moi
+
+	sim.partProperty(i, "life", (rotation + angvel * 65536) % 65536)
+	sim.partProperty(i, "tmp", momentum / 10)
+	sim.velocityX(x / 4, y / 4, airVelX)
+
+	-- sim.partProperty(i, "life", (rotation + momentum) % 65536)
+	-- -- momentum = momentum + airVelX * 1
+	-- -- airVelX = (airVelX + momentum * 0.005) / 1
+	-- -- momentum = momentum - momentum * 0.005
+	-- sim.partProperty(i, "tmp", momentum)
+	-- sim.velocityX(x / 4, y / 4, airVelX)
 end)
 
 elem.property(tbne, "Graphics", function (i, r, g, b)
+	local x, y = sim.partPosition(i)
+
+	local rotation = sim.partProperty(i, "life")
+	-- local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4)
+	local direction = 0
+
+	drawTurbine(x + 0.5, y + 0.5, rotation, direction, curvature, length, width, bladecount, bladetype)
 	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
 end -- End of TBNE scope
