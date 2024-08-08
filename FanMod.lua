@@ -6850,9 +6850,43 @@ local angleSteps = {
 	{0.5, -0.5},
 }
 
+local angleValues = {
+	0,
+	math.pi / 4,
+	math.pi / 2,
+	math.pi / 4 * 3,
+	math.pi,
+	math.pi / 4 * 5,
+	math.pi / 2 * 3,
+	math.pi / 4 * 7,
+}
+
+function getBoundingBox(x, y, l, w, a, m)
+	return math.min(
+		y + w * math.cos(a) + l * math.sin(a),
+		y + w * math.cos(a),
+		y - w * math.cos(a) + l * math.sin(a),
+		y - w * math.cos(a)),
+	math.max(
+		y + w * math.cos(a) + l * math.sin(a),
+		y + w * math.cos(a),
+		y - w * math.cos(a) + l * math.sin(a),
+		y - w * math.cos(a)),
+	math.min(
+		x + w * math.sin(a) + l * math.cos(a),
+		x + w * math.sin(a),
+		x - w * math.sin(a) + l * math.cos(a),
+		x - w * math.sin(a)),
+	math.max(
+		x + w * math.sin(a) + l * math.cos(a),
+		x + w * math.sin(a),
+		x - w * math.sin(a) + l * math.cos(a),
+		x - w * math.sin(a))
+end
+
 function drawTurbine(x, y, r, a, c, l, w, b, t)
-	local dx = math.cos(a / 4 * math.pi)
-	local dy = math.sin(a / 4 * math.pi)
+	local dx = math.cos(angleValues[a + 1])
+	local dy = math.sin(angleValues[a + 1])
 	local x1 = x
 	local y1 = y
 	local i = 1
@@ -6973,10 +7007,24 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 
 	--momentum = (bladeVelX / velocityFactor) * moi
 
+	-- Find all cells in contact with the blade
+
+	local top, bottom, left, right = getBoundingBox(x, y, length + 1, width, direction)
+	local angle = angleValues[direction + 1]
+
+	-- for j = math.floor(top / sim.CELL), math.ceil(bottom / sim.CELL) - 1 do
+	-- 	for k = math.floor(left / sim.CELL), math.ceil(right / sim.CELL) - 1 do
+	-- 		local depth = (j * 4 - y) * math.sin(angle) + (k * 4 - x) * math.cos(angle) 
+	-- 		local breadth = (j * 4 - y) * math.cos(angle) - (k * 4 - x) * math.sin(angle) 
+	-- 		if direction % 2 == 0 or depth < length + 2 and depth > 0 and math.abs(breadth) < width + 2 then
+	-- 		end
+	-- 	end
+	-- end
+
+
 	sim.partProperty(i, "life", (rotation + angvel * 65536) % 65536)
 	sim.partProperty(i, "tmp", momentum / 10)
 	sim.velocityX(x / 4, y / 4, airVelX)
-
 	-- sim.partProperty(i, "life", (rotation + momentum) % 65536)
 	-- -- momentum = momentum + airVelX * 1
 	-- -- airVelX = (airVelX + momentum * 0.005) / 1
@@ -6989,10 +7037,37 @@ elem.property(tbne, "Graphics", function (i, r, g, b)
 	local x, y = sim.partPosition(i)
 
 	local rotation = sim.partProperty(i, "life")
-	-- local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4)
-	local direction = 0
+	local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
+	-- local direction = 0
 
 	drawTurbine(x + 0.5, y + 0.5, rotation, direction, curvature, length, width, bladecount, bladetype)
+
+	local angle = angleValues[direction + 1]
+
+	local top, bottom, left, right = getBoundingBox(x, y, length + 1, width, angle)
+
+	graphics.drawRect(left, top, right - left, bottom - top, 0, 255, 255, 63)
+
+	for j = math.floor(top / sim.CELL), math.ceil(bottom / sim.CELL) - 1 do
+		for k = math.floor(left / sim.CELL), math.ceil(right / sim.CELL) - 1 do
+			local depth = (j * 4 - y) * math.sin(angle) + (k * 4 - x) * math.cos(angle) 
+			local breadth = (j * 4 - y) * math.cos(angle) - (k * 4 - x) * math.sin(angle) 
+			if direction % 2 == 0 or depth < length + 2 and depth > 0 and math.abs(breadth) < width + 2 then
+				graphics.drawRect(k * 4, j * 4, sim.CELL, sim.CELL, 0, 255, 0, 63)
+			end
+			-- if direction % 2 == 1 then
+			-- 	if depth > length + 2 or depth < 0 or math.abs(breadth) > width + 2 then
+			-- 		graphics.drawRect(k * 4, j * 4, sim.CELL, sim.CELL, 255, 0, 0, 63)
+			-- 	else
+			-- 		graphics.drawRect(k * 4, j * 4, sim.CELL, sim.CELL, 0, 255, 0, 63)
+			-- 	end
+-- 
+			-- else
+			-- 	graphics.drawRect(k * 4, j * 4, sim.CELL, sim.CELL, 0, 255, 0, 63)
+			-- end
+		end
+	end
+
 	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
 end -- End of TBNE scope
