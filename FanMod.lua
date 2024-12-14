@@ -6948,7 +6948,8 @@ end
 -- ctype: Turbine parameters (direction, blade count, curvature, blade type)
 -- temp: Unused?
 -- life: Angular position, in 65536ths of a revolution
--- tmp: Angular momentum, in mass*pixel^2/frame. Unit of mass is arbitrary
+-- tmp: Angular velocity, in 1048576ths of a revolution per frame 
+--		(this means the blade can rotate so slowly it does not visually move, but the precision is useful)
 -- tmp2: Length and width in pixels
 
 elem.element(tbne, elem.element(elem.DEFAULT_PT_CLNE))
@@ -6970,67 +6971,105 @@ local length = 20
 local width = 40
 local curvature = 600 -- 65536ths of a pixel per pixel
 
+-- Physical parameters, chosen by trial-and-error to balance realism, usefulness, and fun across all turbine configurations
+
+-- "Density" of turbine blades.
+local moiCoefficient = 0.03
+-- The conversion ratio between air speed and turbine linear speed
+local airSpeedRatio = 4
+
 elem.property(tbne, "Update", function(i, x, y, s, n)
 	local rotation = sim.partProperty(i, "life")
-	local momentum = sim.partProperty(i, "tmp") * 10
-	local direction = 0
-	local airVelX = sim.velocityX(x / 4, y / 4)
-	local airVelY = sim.velocityY(x / 4, y / 4)
+	local angvel = sim.partProperty(i, "tmp")
+	local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
+	local direction = 2
 
-	-- local velocityFactor = 1
-
-	local moi = bladecount * length * width * width
-
-	local angvel = momentum / moi / 65536
-
-	-- Temporary test variable (radius)
-	local r = 10
-
-	-- Essentially how many pixels the blade moves along its axis of rotation this frame
-	-- Used for air velocity calculations
-	local bladeVelX = -angvel * (65536 / curvature)
-
-	local velDiffX = (airVelX - bladeVelX)
-
-	-- Density of air assumed constant - should it be?
-	-- Air velocity is assumed to be in p/f (it's not, air sim is completely arbitrary and doesn't have any sensible units)
-
-	-- The mass of a pixel of air is assumed to be 1
-	local airMomentumX = airVelX * (sim.CELL * sim.CELL)
-	-- Amount of momentum that must be added to the air for the linear speed of the air and turbine to be equal
-	local airImpulseX = velDiffX * (sim.CELL * sim.CELL) * 0.5
-	local turbineImpulse = airImpulseX * r * 65536 / 200
-
-	-- Why does this have to be negated?
-	airVelX = -(airMomentumX + airImpulseX) / (sim.CELL * sim.CELL)
-	momentum = (momentum - turbineImpulse)
-
-	--momentum = (bladeVelX / velocityFactor) * moi
+	-- Turbine moment of inertia in mass unit times pixels squared (mass unit used is arbitrary, chosen based on what feels right)
+	-- Each blade is assumed to be 1 pixel thick and have a density of 1 mass unit per pixel cubed
+	local moi = bladecount * length * width * width * moiCoefficient
 
 	-- Find all cells in contact with the blade
-
-	local top, bottom, left, right = getBoundingBox(x, y, length + 1, width, direction)
 	local angle = angleValues[direction + 1]
 
-	-- for j = math.floor(top / sim.CELL), math.ceil(bottom / sim.CELL) - 1 do
-	-- 	for k = math.floor(left / sim.CELL), math.ceil(right / sim.CELL) - 1 do
-	-- 		local depth = (j * 4 - y) * math.sin(angle) + (k * 4 - x) * math.cos(angle) 
-	-- 		local breadth = (j * 4 - y) * math.cos(angle) - (k * 4 - x) * math.sin(angle) 
-	-- 		if direction % 2 == 0 or depth < length + 2 and depth > 0 and math.abs(breadth) < width + 2 then
-	-- 		end
-	-- 	end
-	-- end
+	local top, bottom, left, right = getBoundingBox(x, y, length + 1, width, angle)
 
+	local cells = {}
+	local totalScaledForce = 0
 
-	sim.partProperty(i, "life", (rotation + angvel * 65536) % 65536)
-	sim.partProperty(i, "tmp", momentum / 10)
-	sim.velocityX(x / 4, y / 4, airVelX)
-	-- sim.partProperty(i, "life", (rotation + momentum) % 65536)
-	-- -- momentum = momentum + airVelX * 1
-	-- -- airVelX = (airVelX + momentum * 0.005) / 1
-	-- -- momentum = momentum - momentum * 0.005
-	-- sim.partProperty(i, "tmp", momentum)
-	-- sim.velocityX(x / 4, y / 4, airVelX)
+	-- How much angular acceleration the turbine experiences this frame, in 1048576ths of a revolution per frame squared
+	local angvelChange = 0
+
+	for j = math.floor(top / sim.CELL), math.ceil(bottom / sim.CELL) - 1 do
+		for k = math.floor(left / sim.CELL), math.ceil(right / sim.CELL) - 1 do
+			-- The distance in pixels of the current cell from the line perpendicular to the axle extending from the turbine
+			local depth = (j * 4 - y) * math.sin(angle) + (k * 4 - x) * math.cos(angle) 
+			-- THe distance in pixels of the current cell from the line the axle lies within
+			local breadth = math.abs((j * 4 - y) * math.cos(angle) - (k * 4 - x) * math.sin(angle))
+			if direction % 2 == 0 or depth < length + 2 and depth > 0 and breadth < width + 2 then
+
+				-- Normalized vector indicating the direction of flow across this cell
+				local flowDirX = math.cos(angle)
+				local flowDirY = math.sin(angle)
+
+				-- The flow speeds in pixels per frame that would result in zero force between the air and blades
+				local flowMagnitude = 
+					-- Convert angular velocity to to revolutions per frame
+					-angvel / 1048576 *
+					-- Convert revolutions per frame to pixels per frame using turbine curvature
+					(65536 / curvature) *
+					-- Adjust for distance from the center of rotation. Ranges from 0 (at axle) to 2 (at edge)
+					breadth * 2 / width *
+					-- Adjust to taste
+					airSpeedRatio
+				
+				local flowVelX = flowDirX * flowMagnitude
+				local flowVelY = flowDirY * flowMagnitude
+
+				-- For the sake of this element, air velocity is assumed to be measured in pixels per frame 
+				-- (it's not, but airsim is inconsistent about units so just go with it)
+				local airVelX = sim.velocityX(k, j)
+				local airVelY = sim.velocityY(k, j)
+
+				-- How much the air would have to be accelerated to reach equilibrium
+				local airFlowDX = (flowVelX - airVelX) * math.abs(flowDirX)
+				local airFlowDY = (flowVelY - airVelY) * math.abs(flowDirY)
+
+				table.insert(cells, {k, j, airVelX, airVelY, airFlowDX, airFlowDY, flowDirX, flowDirY, depth, breadth})
+
+				-- totalScaledForce = totalScaledForce + math.sqrt(airFlowDX ^ 2 + airFlowDY ^ 2)
+				-- totalScaledForce = totalScaledForce + airFlowDX * flowDirX + airFlowDY * flowDirY
+			end
+		end
+	end
+
+	-- Numbers of cells in contact with the turbine, in groups of 16 pixels squared
+	local numCells = #cells
+
+	for j,k in ipairs(cells) do
+		local cell = k
+
+		-- The proportion of the difference between the air velocity and turbine linear velocity exchanged each frame
+		local forceExchangeCoeff = 2 * math.atan(4 * curvature * math.pi / 65536) / math.pi
+
+		angvelChange = angvelChange + 
+			-- Add total air-turbine speed difference
+			((cell[5] * cell[7] + cell[6] * cell[8]) * 
+			-- Adjust transfer rate by force exchange coefficient
+			forceExchangeCoeff / 
+			-- 
+			moi / 
+			-- 
+			numCells * 
+			-- Convert from revolutions per frame to 1048576ths of a revolution per frame
+			1048576)
+		sim.velocityX(cell[1], cell[2], cell[3] + cell[5] * forceExchangeCoeff)
+		sim.velocityY(cell[1], cell[2], cell[4] + cell[6] * forceExchangeCoeff)
+	end
+
+	sim.partProperty(i, "life", (rotation + angvel / 16) % 65536)
+	sim.partProperty(i, "tmp", angvel + angvelChange)
+	sim.partProperty(i, "tmp2", angvelChange)
+
 end)
 
 elem.property(tbne, "Graphics", function (i, r, g, b)
@@ -7038,7 +7077,7 @@ elem.property(tbne, "Graphics", function (i, r, g, b)
 
 	local rotation = sim.partProperty(i, "life")
 	local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
-	-- local direction = 0
+	local direction = 2
 
 	drawTurbine(x + 0.5, y + 0.5, rotation, direction, curvature, length, width, bladecount, bladetype)
 
@@ -7067,6 +7106,8 @@ elem.property(tbne, "Graphics", function (i, r, g, b)
 			-- end
 		end
 	end
+
+	graphics.drawText(right, bottom, sim.partProperty(i, "tmp2"))
 
 	return 0,pixel_mode,255,colr,colg,colb,firea,colr,colg,colb;
 end)
