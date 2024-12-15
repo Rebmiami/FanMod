@@ -2465,6 +2465,9 @@ elem.property(trtw, "Update", function(i, x, y, s, n)
 	end
 end)
 
+-- ctype: Wavelength of photon to emit next frame
+-- tmp: Random coloration
+-- tmp3: Previous frame pressure, for breaking in sudden pressure changes
 elem.element(flor, elem.element(elem.DEFAULT_PT_QRTZ))
 elem.property(flor, "Name", "FLOR")
 elem.property(flor, "Description", "Fluorite. Can be refined into HALO. Fluoresces in blue light. Good for your chakras.")
@@ -2577,7 +2580,7 @@ elem.property(pflr, "Graphics", florGraphics)
 
 sim.can_move(elem.DEFAULT_PT_PHOT, flor, 2)
 sim.can_move(elem.DEFAULT_PT_PHOT, pflr, 2)
-end -- Start of HALO scope
+end -- End of HALO scope
 
 do -- Start of NO32 scope
 -- https://www.gabrielgambetta.com/computer-graphics-from-scratch/07-filled-triangles.html
@@ -4021,6 +4024,10 @@ local basicDirectionTable = {
 	{315, 0, 45},
 } 
 
+-- ctype: Element to launch
+-- temp: Launch speed
+-- life: Angle
+-- tmp: Angle variation
 elem.element(lncr, elem.element(elem.DEFAULT_PT_CLNE))
 elem.property(lncr, "Name", "LNCR")
 elem.property(lncr, "Description", "Launcher. Shift+click and drag on a launcher to set its power and angle.")
@@ -4389,6 +4396,12 @@ elem.property(elem.DEFAULT_PT_STK2, "Update", function(i, x, y, s, n)
 	end
 end)
 
+-- ctype: Ammo type.
+-- life: Speed, used for impact detection
+-- tmp: X component of velocity on previous frame, times 100
+-- tmp2: Y component of velocity on previous frame, times 100
+-- tmp3: Previous X position
+-- tmp4: Previous Y position
 elem.element(shot, elem.element(elem.DEFAULT_PT_CNCT))
 elem.property(shot, "Name", "AMMO")
 elem.property(shot, "Description", "Bullet. Damages materials when accelerated to high speeds.")
@@ -4716,6 +4729,7 @@ local fuelNonstick = {
 elem.property(elem.DEFAULT_PT_DESL, "Weight", 20)
 elem.property(elem.DEFAULT_PT_SOAP, "Weight", 18)
 
+-- life: Burn timer.
 elem.element(fuel, elem.element(elem.DEFAULT_PT_GEL))
 elem.property(fuel, "Name", "FUEL")
 elem.property(fuel, "Description", "Rocket fuel. Burns with high pressure and heat. Hard to ignite.")
@@ -4845,6 +4859,7 @@ elem.property(elem.DEFAULT_PT_VRSS, "CreateAllowed", function(p, x, y, t)
 	return p < 0 or (not virsImmune[t] or not virsImmune[t](p))
 end)
 
+-- tmp: Oxidation level
 elem.element(copp, elem.element(elem.DEFAULT_PT_METL))
 elem.property(copp, "Name", "COPP")
 elem.property(copp, "Description", "Copper. Superconducts at low temperatures.")
@@ -4958,6 +4973,9 @@ local isCuso = {
 	[brcs] = true,
 }
 
+-- life: Acid conversion propagation
+-- tmp: Pentahydrate or anhydrous form.
+-- tmp3: Previous pressure for breaking under sudden changes.
 elem.element(cuso, elem.element(elem.DEFAULT_PT_GLAS))
 elem.property(cuso, "Name", "CUSO")
 elem.property(cuso, "Description", "Copper(II) sulfate. Toxic crystal, formed when COPP electrolyzes ACID.")
