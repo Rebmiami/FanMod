@@ -6992,9 +6992,9 @@ local curvature = 600 -- 65536ths of a pixel per pixel
 -- Physical parameters, chosen by trial-and-error to balance realism, usefulness, and fun across all turbine configurations
 
 -- "Density" of turbine blades.
-local moiCoefficient = 0.03
+local moiCoefficient = 8
 -- The conversion ratio between air speed and turbine linear speed
-local airSpeedRatio = 4
+local airSpeedRatio = 1
 
 elem.property(tbne, "Update", function(i, x, y, s, n)
 	local rotation = sim.partProperty(i, "life")
@@ -7036,7 +7036,7 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 					-- Convert revolutions per frame to pixels per frame using turbine curvature
 					(65536 / curvature) *
 					-- Adjust for distance from the center of rotation. Ranges from 0 (at axle) to 2 (at edge)
-					breadth * 2 / width *
+					-- breadth * 2 / width *
 					-- Adjust to taste
 					airSpeedRatio
 				
@@ -7067,7 +7067,9 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 		local cell = k
 
 		-- The proportion of the difference between the air velocity and turbine linear velocity exchanged each frame
-		local forceExchangeCoeff = 2 * math.atan(4 * curvature * math.pi / 65536) / math.pi
+		local forceExchangeCoeff = 2 * math.atan(4 * curvature * math.pi / 65536) / math.pi * cell[10] / width
+
+		forceExchangeCoeff = 1
 
 		angvelChange = angvelChange + 
 			-- Add total air-turbine speed difference
@@ -7076,8 +7078,8 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 			forceExchangeCoeff / 
 			-- 
 			moi / 
-			-- 
-			numCells * 
+			-- Scaling to make up for imprecision from cell size
+			numCells * (length * width * 2 / 16) *
 			-- Convert from revolutions per frame to 1048576ths of a revolution per frame
 			1048576)
 		sim.velocityX(cell[1], cell[2], cell[3] + cell[5] * forceExchangeCoeff)
