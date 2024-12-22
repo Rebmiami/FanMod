@@ -7035,8 +7035,6 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 					-angvel / 1048576 *
 					-- Convert revolutions per frame to pixels per frame using turbine curvature
 					(65536 / curvature) *
-					-- Adjust for distance from the center of rotation. Ranges from 0 (at axle) to 2 (at edge)
-					-- breadth * 2 / width *
 					-- Adjust to taste
 					airSpeedRatio
 				
@@ -7069,7 +7067,7 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 		-- The proportion of the difference between the air velocity and turbine linear velocity exchanged each frame
 		local forceExchangeCoeff = 2 * math.atan(4 * curvature * math.pi / 65536) / math.pi * cell[10] / width
 
-		forceExchangeCoeff = 1
+		forceExchangeCoeff = cell[10] / width
 
 		angvelChange = angvelChange + 
 			-- Add total air-turbine speed difference
