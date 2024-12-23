@@ -6988,6 +6988,7 @@ local bladecount = 7
 local length = 20
 local width = 40
 local curvature = 600 -- 65536ths of a pixel per pixel
+local direction = 2
 
 -- Physical parameters, chosen by trial-and-error to balance realism, usefulness, and fun across all turbine configurations
 
@@ -6995,14 +6996,13 @@ local curvature = 600 -- 65536ths of a pixel per pixel
 local moiCoefficient = 8
 -- The conversion ratio between air speed and turbine linear speed
 local airSpeedRatio = 1
--- The amount of angular momentum a single pixel of SPRK represents, in mass unit times pixels squared times 1048576ths of a revolution per frame
+-- The amount of angular momentum a single pixel of SPRK represents, in MOI units times 1048576ths of a revolution per frame
 local sparkEnergy = 5000000
 
 elem.property(tbne, "Update", function(i, x, y, s, n)
 	local rotation = sim.partProperty(i, "life")
 	local angvel = sim.partProperty(i, "tmp")
-	local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
-	local direction = 2
+	-- local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
 
 	-- Turbine moment of inertia in mass unit times pixels squared (mass unit used is arbitrary, chosen based on what feels right)
 	-- Each blade is assumed to be 1 pixel thick and have a density of 1 mass unit per pixel cubed
@@ -7114,8 +7114,7 @@ elem.property(tbne, "Graphics", function (i, r, g, b)
 	local x, y = sim.partPosition(i)
 
 	local rotation = sim.partProperty(i, "life")
-	local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
-	local direction = 2
+	-- local direction = math.floor(math.atan2(tpt.mousey - y, tpt.mousex - x) / math.pi * 4) % 8
 
 	drawTurbine(x + 0.5, y + 0.5, rotation, direction, curvature, length, width, bladecount, bladetype)
 
