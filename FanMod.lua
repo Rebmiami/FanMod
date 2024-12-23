@@ -6995,6 +6995,8 @@ local curvature = 600 -- 65536ths of a pixel per pixel
 local moiCoefficient = 8
 -- The conversion ratio between air speed and turbine linear speed
 local airSpeedRatio = 1
+-- The amount of angular momentum a single pixel of SPRK represents, in mass unit times pixels squared times 1048576ths of a revolution per frame
+local sparkEnergy = 5000000
 
 elem.property(tbne, "Update", function(i, x, y, s, n)
 	local rotation = sim.partProperty(i, "life")
@@ -7082,6 +7084,24 @@ elem.property(tbne, "Update", function(i, x, y, s, n)
 			1048576)
 		sim.velocityX(cell[1], cell[2], cell[3] + cell[5] * forceExchangeCoeff)
 		sim.velocityY(cell[1], cell[2], cell[4] + cell[6] * forceExchangeCoeff)
+	end
+
+	if math.abs(angvel) > sparkEnergy / moi * 25 then
+		for n, nx, ny in sim.neighbors(x, y, 2, 2, elem.DEFAULT_PT_METL) do
+			if sim.partCreate(-1, nx, ny, elem.DEFAULT_PT_SPRK) ~= -1 then
+				angvelChange = angvelChange - sparkEnergy / moi * sign(angvel)
+			end
+		end
+	end
+
+	for n, nx, ny in sim.neighbors(x, y, 2, 2, elem.DEFAULT_PT_SPRK) do
+		if sim.partProperty(n, "life") == 3 then
+			if sim.partProperty(n, "ctype") == elem.DEFAULT_PT_PSCN then
+				angvelChange = angvelChange - sparkEnergy / moi
+			elseif sim.partProperty(n, "ctype") == elem.DEFAULT_PT_NSCN then
+				angvelChange = angvelChange + sparkEnergy / moi
+			end
+		end
 	end
 
 	sim.partProperty(i, "life", (rotation + angvel / 16) % 65536)
