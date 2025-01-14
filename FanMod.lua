@@ -5094,6 +5094,7 @@ local stgmImmune = {
 	[elem.DEFAULT_PT_DMND] = true,
 	[elem.DEFAULT_PT_CLNE] = true,
 	[elem.DEFAULT_PT_WARP] = true,
+	[elem.DEFAULT_PT_HEAC] = true,
 }
 
 local stgmMaxStability = 100
