@@ -5142,12 +5142,30 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 			if p and ptemp and sim.partProperty(p, "temp") > 1500 then
 				local ptype = sim.partProperty(p, "type")
 				if not stgmImmune[ptype] and elem.property(ptype, "HeatConduct") > 0 then
-					fuel = fuel + 300
-					mass = mass + 1
-					stability = stability + 1
-					sim.partKill(p)
-					if fuel > 3000 then
-						stability = stability - 10
+
+					local fuelSelf = true
+					-- Ensure STGM particles never go for seconds when there are unfed particles nearby
+					if fuel > 0 then
+						local nearby = sim.partNeighbours(x, y, 2, stgm)
+						for j,k in pairs(nearby) do
+							if sim.partProperty(k, "life") == 0 then
+								sim.partProperty(k, "life", sim.partProperty(k, "life") + 300)
+								sim.partProperty(k, "ctype", sim.partProperty(k, "ctype") + 1)
+								sim.partProperty(k, "tmp", sim.partProperty(k, "tmp") + 1)
+								fuelSelf = false
+								break
+							end
+						end
+					end
+					
+					if fuelSelf then
+						fuel = fuel + 300
+						mass = mass + 1
+						stability = stability + 1
+						sim.partKill(p)
+						if fuel > 3000 then
+							stability = stability - 10
+						end
 					end
 				end
 			end
