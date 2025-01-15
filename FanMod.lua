@@ -5097,9 +5097,29 @@ local stgmImmune = {
 	[elem.DEFAULT_PT_HEAC] = true,
 }
 
+-- The maximum stability STGM can reach
 local stgmMaxStability = 100
+-- The number of particles one STGM particle must absorb before a new one is generated
 local stgmSplitMass = 50
 
+-- Minimum temperature in K for STGM to convert particles
+local absorbTemp = 1500
+-- How much energy an STGM particle gains from converting another particle
+local particleEnergyValue = 300
+-- Energy level above which adding more fuel drastically reduces stability
+local overfeedingThreshold = 3000
+-- Amount of stability lost from overfeeding
+local overfeedingPenalty = 10
+
+-- Temperature in K below which instability begins rapidly compounding
+local freezeThreshold = 3500
+-- Number of degrees each point of mass adds to the freeze threshold
+local freezeMassCoefficient = 40
+
+-- Temperature in K above which STGM with 100 stability can lose stability from overheat
+local overheatThreshold = 4000
+-- Minimum temperature in K for stability loss from overheat to be possible
+local minOverheatTemp = 3000
 
 -- life: Energy. Expended to produce heat. Expends faster as mass increases.
 -- ctype: Mass. Dozens of normal particles can be compressed into a single STGM particle.
@@ -5139,7 +5159,7 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 			-- Note: This is temporary because of a bug in TPT that causes pmap to return bad IDs under weird circumstances
 			-- This can be removed when the bug is fixed
 			local ptemp = sim.partProperty(p, "temp")
-			if p and ptemp and sim.partProperty(p, "temp") > 1500 then
+			if p and ptemp and sim.partProperty(p, "temp") > absorbTemp then
 				local ptype = sim.partProperty(p, "type")
 				if not stgmImmune[ptype] and elem.property(ptype, "HeatConduct") > 0 then
 
@@ -5158,13 +5178,14 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 						end
 					end
 					
+					-- Consume the fuel if there are no unfed particles nearby
 					if fuelSelf then
-						fuel = fuel + 300
+						fuel = fuel + particleEnergyValue
 						mass = mass + 1
 						stability = stability + 1
 						sim.partKill(p)
-						if fuel > 3000 then
-							stability = stability - 10
+						if fuel > overfeedingThreshold then
+							stability = stability - overfeedingPenalty
 						end
 					end
 				end
@@ -5172,11 +5193,14 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 		end
 	end
 
-	if stability < stgmMaxStability or temp > 4000 then
-		if temp < 3500 + mass * 40 then -- As the STGM accumulates more mass, it must be kept at a higher temp to keep stable
+	if stability < stgmMaxStability or temp > overheatThreshold then
+		-- As the STGM accumulates more mass, it must be kept at a higher temp to keep stable
+		if temp < freezeThreshold + mass * freezeMassCoefficient then
 			stability = stability - math.random(0, 2)
 		end
-		if temp > 3000 then
+		if temp > minOverheatTemp then
+			-- Chance of random stability loss increases exponentially with temperature
+			-- Probability near 0 below ~4000 K, approaches 1 as temperature approaches 10000K
 			local instability = (temp / 10000) ^ 15
 			if math.random() < instability then
 				stability = stability - 1
