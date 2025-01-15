@@ -5223,7 +5223,8 @@ elem.property(stgm, "Update", function(i, x, y, s, n)
 	if stability <= 0 then
 		sim.partKill(i)
 		sim.partProperty(sim.partCreate(-3, x, y, elem.DEFAULT_PT_WARP), "temp", mass * 200)
-		sim.partProperty(sim.partCreate(-3, x, y, elem.DEFAULT_PT_ELEC), "temp", mass * 200)
+		local lightning = sim.partCreate(-3, x, y, elem.DEFAULT_PT_LIGH, fuel / 300 + 3)
+		sim.partProperty(lightning, "tmp", math.random(360))
 		return
 	else
 		if fuel > 0 then
